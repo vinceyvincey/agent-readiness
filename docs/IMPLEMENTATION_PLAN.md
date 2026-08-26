@@ -32,6 +32,13 @@
 - [ ] Optional HTML/README badge.
 - Verify: two runs produce diffable history; .agent-readiness git-ignored.
 
+## M4.5 - Validation harness & hypothesis gates
+- [ ] Stand up ./validation/ smoke corpus (>=3 calibrated repos low/med/high).
+- [ ] Pin controlled harness for E2 (pi + fixed model); record scaffold-effect baseline.
+- [ ] E1 report + E3 narrative-flagging + rubric_version stamp.
+- [ ] Wire H1..H8 acceptance thresholds into the gate command.
+- [ ] Commit every smoke run to docs/validation/; no milestone is DONE without its run.
+
 ## M5 - Validation & dogfood
 - [ ] Symlink/install docs (skills + extension).
 - [ ] pi package metadata (packages.md-style) for npm/git distribution.
