@@ -1,6 +1,6 @@
 // M9: tests for agentic remediation prompt generation + static fix drafts (no regression).
 import { runReadiness } from '../src/engine.ts';
-import { agentPromptFor, assessmentPromptFor, draftsFor } from '../src/fix.ts';
+import { agentPromptFor, assessmentPromptFor, draftsFor, fullHybridPromptFor } from '../src/fix.ts';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -176,6 +176,53 @@ function write(d: string, rel: string, content: string) {
   const prompt = assessmentPromptFor(r);
   eq('assessment mentions monorepo', prompt.includes('monorepo'), true);
   eq('assessment lists apps in prompt', prompt.includes('packages/web') && prompt.includes('packages/api'), true);
+}
+
+// ---- fullHybridPromptFor: contains both assess and fix phases ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const r = runReadiness(d);
+  const prompt = fullHybridPromptFor(r);
+
+  eq('fullHybrid has PHASE 1 ASSESS', prompt.includes('PHASE 1'), true);
+  eq('fullHybrid has PHASE 2 FIX', prompt.includes('PHASE 2'), true);
+  eq('fullHybrid has PHASE 3 VALIDATE', prompt.includes('PHASE 3'), true);
+  eq('fullHybrid has PHASE 4 RE-RUN', prompt.includes('PHASE 4'), true);
+  eq('fullHybrid mentions current level', prompt.includes(r.level), true);
+  eq('fullHybrid mentions current overall', prompt.includes(String(r.overall)), true);
+  eq('fullHybrid mentions droidPassRate', prompt.includes(String(r.droidPassRate)), true);
+  eq('fullHybrid has agent-only section', prompt.includes('devcontainer_runnable') || prompt.includes('n_plus_one') || prompt.includes('interactive_qa'), true);
+  eq('fullHybrid has OUTPUT FORMAT', prompt.includes('OUTPUT FORMAT'), true);
+  eq('fullHybrid has Score Delta section', prompt.includes('Score Delta'), true);
+  eq('fullHybrid has Remediation section', prompt.includes('Remediation') || prompt.includes('fix') || prompt.includes('Fix'), true);
+  eq('fullHybrid has assessment section', prompt.includes('CONFIRMED FAIL') || prompt.includes('FALSE POSITIVE'), true);
+}
+
+// ---- fullHybridPromptFor: monorepo awareness ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }));
+  write(d, 'packages/web/package.json', JSON.stringify({ name: 'web' }));
+  write(d, 'packages/api/package.json', JSON.stringify({ name: 'api' }));
+  write(d, 'README.md', '# Monorepo\n\nA test monorepo with web and api packages.\n');
+  write(d, '.gitignore', '.env\nnode_modules\ndist\n');
+  const r = runReadiness(d);
+  const prompt = fullHybridPromptFor(r);
+  eq('fullHybrid mentions monorepo', prompt.includes('monorepo'), true);
+  eq('fullHybrid lists apps', prompt.includes('packages/web') && prompt.includes('packages/api'), true);
+}
+
+// ---- fullHybridPromptFor: includes failing check evidence ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const r = runReadiness(d);
+  const prompt = fullHybridPromptFor(r);
+  const failedIds = r.findings.filter(f => !f.pass && !f.skipped).map(f => f.id);
+  // Should mention at least some failing check IDs
+  const mentionsFailed = failedIds.some(id => prompt.includes(id));
+  eq('fullHybrid mentions failing check IDs', mentionsFailed, true);
 }
 
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));

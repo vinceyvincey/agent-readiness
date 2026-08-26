@@ -191,6 +191,16 @@
 - [x] --droid-scoring flag: uses Droid's flat pass rate for level calculation (L1-L5 = 0-20% → 80-100%). resolveLevelDroid() function. droidScoring boolean in report. Shows scoring model in report.md.
 - Verify: all 9 test suites pass (283 total assertions).
 
+## M17 - /readiness-full hybrid command + extension upgrades - DONE
+- [x] fullHybridPromptFor() in src/fix.ts: combined 4-phase prompt (Assess, Fix, Validate, Re-run). Includes failing checks grouped by pillar with full descriptions, agent-only criteria with verification commands, top-5 remediation items, quality standards, and structured output format with score delta.
+- [x] /readiness-full pi command: runs engine with verify=true (default on), returns deterministic report + combined hybrid prompt. Pi's agent loop executes the 4 phases.
+- [x] /readiness-report upgraded: parses --verify, --droid-scoring, --strict flags from command args.
+- [x] /readiness-fix upgraded: parses --verify flag from command args.
+- [x] readiness_check tool: gains optional `verify` parameter.
+- [x] parseArgs() helper: shared flag parsing for all extension commands.
+- [x] SKILL.md updated: documents all three commands with flag examples, runtime verification, Droid-compatible scoring.
+- Verify: all 10 test suites pass (324 total assertions).
+
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).
 - Every deterministic check documented: file glob + evidence rule + pass/fail.

@@ -472,3 +472,210 @@ node --experimental-strip-types src/cli.ts . --json
 \`\`\`
 Check that the specific check IDs you fixed now pass — not just that the overall score increased.`;
 }
+
+// M17: Combined assessment + remediation prompt for /readiness-full command.
+// Instructs the agent to: (1) verify deterministic findings, (2) discover agent-only criteria,
+// (3) implement fixes, (4) validate, and (5) re-run for a delta.
+export function fullHybridPromptFor(report: ReadinessReport): string {
+  const failed = report.findings.filter((c) => !c.pass && !c.skipped);
+  const skipped = report.findings.filter((c) => c.skipped);
+  const passed = report.findings.filter((c) => c.pass && !c.skipped);
+  const agentOnly = getAgentOnlyCriteria();
+  const isMonorepo = Object.keys(report.apps).length > 1;
+  const lang = report.repo.language;
+  const langContext = lang !== 'unknown' ? `Language: ${lang}. ` : '';
+
+  // Group failing checks by pillar.
+  const pillars: Record<string, typeof failed> = {};
+  for (const c of failed) {
+    if (!pillars[c.pillar]) pillars[c.pillar] = [];
+    pillars[c.pillar].push(c);
+  }
+  const pillarOrder = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9'];
+  const pillarNames: Record<string, string> = {
+    P0: 'Documentation', P1: 'Agent Guidance', P2: 'Testing', P3: 'Build & Dependencies',
+    P4: 'CI & Release', P5: 'Code Quality', P6: 'Security', P7: 'Observability',
+    P8: 'Environment', P9: 'Modularity',
+  };
+
+  // Build failing-checks summary grouped by pillar.
+  const failingSummary = pillarOrder
+    .filter(p => pillars[p] && pillars[p].length > 0)
+    .map(p => {
+      const items = pillars[p].map((c) => {
+        const reg = getCriterionByPiId(c.id);
+        const desc = reg ? reg.description : '';
+        const evalInstr = reg ? reg.evaluation : '';
+        const skipNote = reg?.skippable ? ' [Skippable]' : '';
+        return `#### ${c.id} [${c.severity}]${skipNote}
+**Scope**: ${reg?.scope === 'app' ? 'per-application' : 'repository-wide'}
+**Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}
+${desc ? `**Description**: ${desc}` : ''}
+${evalInstr ? `**Evaluation**: ${evalInstr}` : ''}`;
+      }).join('\n\n');
+      return `### ${p} — ${pillarNames[p]} (${pillars[p].length} failing)\n\n${items}`;
+    }).join('\n\n');
+
+  // Build agent-only criteria section.
+  const agentOnlySection = agentOnly.map((c) => {
+    const skipNote = c.skippable ? ' [Skippable]' : '';
+    return `### ${c.droidId} [L${c.level}/${c.scope}${skipNote}]
+**Description**: ${c.description}
+**Evaluation**: ${c.evaluation}
+**Verification commands**:
+${agentOnlyVerificationCommands(c.droidId)}`;
+  }).join('\n\n');
+
+  // Build top-5 remediation items (sorted by severity then difficulty).
+  const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
+  const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
+  const sorted = [...failed].sort((a, b) =>
+    (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
+    (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1)
+  );
+  const top5 = sorted.slice(0, 5);
+
+  const remediationItems = top5.map((c) => {
+    const reg = getCriterionByPiId(c.id);
+    const desc = reg ? reg.description : '';
+    const actionMap: Record<string, string> = {
+      'P0.1': 'Write a real README with project overview, setup, usage, and verification sections (>200 chars, >=2 content lines).',
+      'P1.1': 'Create AGENTS.md with install, test, lint, and build commands plus behavior rules.',
+      'P1.2': 'Add enforceable rules (must/always/never) AND backtick-quoted commands matching real scripts to AGENTS.md.',
+      'P2.1': 'Add a test directory and at least one real test with assertions.',
+      'P2.2': 'Configure a test runner (jest/vitest/pytest): install as devDependency, create config, add `test` script.',
+      'P2.3': 'Add a run-test one-liner (`npm test` / `make test`).',
+      'P3.1': 'Commit a lockfile for reproducible builds. Run `npm install` to generate it.',
+      'P3.2': 'Add a build step (`build` script in package.json or Makefile target).',
+      'P4.1': 'Add a CI workflow (.github/workflows/ci.yml) with checkout, install, test, and lint steps.',
+      'P4.2': 'Add a real test invocation in CI (not echo stubs). The workflow must run tests and fail on failure.',
+      'P4.3': 'Add pre-commit hooks (husky + lint-staged or .pre-commit-config.yaml) to enforce lint/format on commit.',
+      'P5.1': 'Configure a linter: install eslint/biome/ruff as devDependency, create config, add `lint` script.',
+      'P5.2': 'Configure a formatter (Prettier / Black / gofmt). Install as devDependency and add a `format` script.',
+      'P5.3': 'Configure a type checker: create tsconfig.json with strict mode, or mypy/pyright config.',
+      'P6.1': 'Harden .gitignore to cover .env, *.pem, *.key, node_modules/, dist/ (>=3 patterns).',
+      'P6.4': 'Wire a vulnerability scan (npm audit / pip-audit / gitleaks) into CI or pre-commit.',
+      'P8.1': 'Add .env.example listing required env vars with placeholder values.',
+    };
+    const action = actionMap[c.id] || `Fix ${c.id}: ${c.evidence}`;
+    return `### ${c.pillar} ${c.id} [${c.severity}/${c.difficulty || 'intermediate'}]
+**Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}
+${desc ? `**Description**: ${desc}` : ''}
+**Fix**: ${action}`;
+  }).join('\n\n');
+
+  const skippedInfo = skipped.length > 0
+    ? `\n**Skipped checks** (${skipped.length}): ${skipped.map(s => s.id).join(', ')} — these require gh CLI or other prerequisites. Attempt them if possible.\n`
+    : '';
+
+  const appInfo = isMonorepo
+    ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps).map(([p, a]) => `${p} (${a.name})`).join(', ')}.\n`
+    : '\n';
+
+  return `You are running a full agent-readiness assessment and remediation on a codebase.
+
+Current readiness: ${report.level} (${report.overall}/100), rubric ${report.rubric_version}.
+Droid-compatible pass rate: ${report.droidPassRate}%
+${langContext}Repo: ${report.repo.path}${appInfo}
+
+## Summary
+- Passing checks: ${passed.length}
+- Failing checks: ${failed.length}
+- Skipped checks: ${skipped.length}
+- Agent-only criteria to evaluate: ${agentOnly.length}
+${skippedInfo}
+
+---
+
+## PHASE 1 — ASSESS (verify findings + discover agent-only criteria)
+
+### 1a. Verify deterministic findings
+
+The deterministic engine marked ${failed.length} checks as failing. For each one:
+1. Read the evidence and evaluation instructions.
+2. Run the actual command (e.g., \`npm test\`, \`npm run lint\`, \`tsc --noEmit\`, \`gh api ...\`) to confirm it truly fails.
+3. If it passes behaviorally, mark it as **FALSE POSITIVE** (the deterministic check was wrong).
+4. If it fails, mark it as **CONFIRMED FAIL** with the command output as evidence.
+
+#### Failing checks (grouped by pillar)
+
+${failingSummary}
+
+### 1b. Discover agent-only criteria
+
+The deterministic engine cannot check these ${agentOnly.length} criteria. Evaluate each one
+using the verification commands and your codebase analysis:
+
+${agentOnlySection}
+
+---
+
+## PHASE 2 — FIX (implement remediation for confirmed failures)
+
+After verifying findings, implement fixes for confirmed failures. Focus on the top ${top5.length}
+highest-leverage fixes first (sorted by severity, then difficulty):
+
+${remediationItems}
+
+### Fix quality standards
+- **NO** empty placeholder files (e.g., empty test files, stub configs)
+- **NO** minimal implementations that technically pass but provide no real value
+- **NO** disabling checks or adding skip markers to pass validation
+- **Install real dependencies** (e.g., \`npm install -D vitest eslint\`), not just config stubs
+- **Verify each fix works**: run the actual command and confirm it exits 0
+- **Commit after each successful fix** with a descriptive message
+- Only touch files directly relevant to the failing check
+
+### Safety
+- Never commit secrets or remove existing tests
+- If a mandatory gate (P2 testing or P6 security) would regress, stop and report it
+- If a fix requires domain knowledge you don't have, note it and skip to the next item
+
+---
+
+## PHASE 3 — VALIDATE (confirm fixes work)
+
+After implementing fixes:
+1. Re-run the actual commands for each fixed check to confirm they now pass.
+2. Run the full test suite to ensure no regressions.
+3. Run the linter and type checker to ensure code quality.
+
+---
+
+## PHASE 4 — RE-RUN (get the new floor score)
+
+After all fixes are validated, re-run the deterministic engine to get the updated score:
+
+\`\`\`
+node --experimental-strip-types src/cli.ts . --json --verify
+\`\`\`
+
+Compare the before/after scores to measure improvement.
+
+---
+
+## OUTPUT FORMAT
+
+Produce your report in this structured format:
+
+### Assessment Results
+For each deterministic failing check:
+- [check-id] CONFIRMED FAIL / FALSE POSITIVE — [evidence: command run + output summary]
+
+### Agent-Only Criteria
+For each agent-only criterion:
+- [droid-id] PASS / FAIL / SKIP — [evidence]
+
+### Fixes Applied
+For each fix:
+- [check-id] Fixed by [action taken] — [verification: command run + result]
+
+### Score Delta
+- Before: ${report.level} (${report.overall}/100, droid pass rate: ${report.droidPassRate}%)
+- After: [new level] ([new overall]/100, droid pass rate: [new rate]%) — from re-running the engine
+- Improvement: [+N points / +N levels]
+
+### Remaining Issues
+List any checks that are still failing after fixes:
+- [check-id] [reason] — [suggested next step]`;
+}

@@ -330,5 +330,36 @@ function write(d: string, rel: string, content: string) {
   }
 }
 
+// ---- CLI --verify flag produces verified findings ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'vitest' } }));
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--verify'], {
+    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
+  });
+  try {
+    const j = JSON.parse(res.stdout || '');
+    eq('CLI --verify produces valid JSON', typeof j.overall === 'number', true);
+  } catch {
+    eq('CLI --verify produces valid JSON', false, true);
+  }
+}
+
+// ---- fullHybridPromptFor is importable and produces structured output ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const r = runReadiness(d);
+  const { fullHybridPromptFor } = await import('../src/fix.ts');
+  const prompt = fullHybridPromptFor(r);
+  eq('fullHybridPromptFor has 4 phases', (prompt.match(/PHASE \d/g) || []).length >= 4, true);
+  eq('fullHybridPromptFor has ASSESS phase', prompt.includes('ASSESS'), true);
+  eq('fullHybridPromptFor has FIX phase', prompt.includes('FIX'), true);
+  eq('fullHybridPromptFor has VALIDATE phase', prompt.includes('VALIDATE'), true);
+  eq('fullHybridPromptFor has RE-RUN phase', prompt.includes('RE-RUN'), true);
+  eq('fullHybridPromptFor has OUTPUT FORMAT', prompt.includes('OUTPUT FORMAT'), true);
+}
+
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);
