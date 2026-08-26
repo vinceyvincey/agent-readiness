@@ -284,5 +284,51 @@ function write(d: string, rel: string, content: string) {
   }
 }
 
+// ---- CLI --model flag sets model in report metadata ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--model', 'claude-sonnet-4'], {
+    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
+  });
+  try {
+    const j = JSON.parse(res.stdout || '');
+    eq('CLI --model sets report.run.model', j.run.model, 'claude-sonnet-4');
+  } catch {
+    eq('CLI --model produces valid JSON', false, true);
+  }
+}
+
+// ---- CLI --model=<id> (equals syntax) ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--model=gpt-4o'], {
+    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
+  });
+  try {
+    const j = JSON.parse(res.stdout || '');
+    eq('CLI --model=gpt-4o sets report.run.model', j.run.model, 'gpt-4o');
+  } catch {
+    eq('CLI --model= produces valid JSON', false, true);
+  }
+}
+
+// ---- CLI default model is claude-opus-5 ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json'], {
+    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
+    env: { ...process.env, PI_MODEL: '' },
+  });
+  try {
+    const j = JSON.parse(res.stdout || '');
+    eq('CLI default model is claude-opus-5', j.run.model, 'claude-opus-5');
+  } catch {
+    eq('CLI default model produces valid JSON', false, true);
+  }
+}
+
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);
