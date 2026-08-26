@@ -1,0 +1,7 @@
+# secrets
+.env
+*.pem
+# caches
+dist
+node_modules
+.agent-readiness

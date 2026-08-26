@@ -1,0 +1,5 @@
+{
+  "name": "acme", "version": "1.0.0", "main": "src/api/index.ts",
+  "scripts": { "test": "vitest --run --coverage", "build": "tsc", "lint": "eslint src", "start": "node dist" },
+  "engines": { "node": ">=20" }
+}

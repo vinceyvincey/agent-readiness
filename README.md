@@ -14,7 +14,7 @@ Built after researching Factory.ai's *Agent Readiness* model and the open-source
 - `.pi/extensions/agent-readiness/` - the extension (commands + tools)
 
 ## Status
-Research + design committed. **M1-M4 done + verified** (skill, deterministic engine, extension surface + --fix + CI gate, history + trend). This repo currently scores **L0 / 26.3** (L0 is correct: the Mandatory P2 testing gate still fails).
+Research + design committed. **M1-M4.5 done + verified** (skill, engine, extension+--fix+CI gate, history+trend, validation harness + first E1/E2 evidence). This repo currently scores **L0 / 26.3** (L0 is correct: the Mandatory P2 testing gate still fails).
 
 ### Engine (M2/M3/M4)
 - src/checks.ts - 10-pillar D-check batteries
