@@ -129,6 +129,37 @@ Implement as: light vars on `:root`; dark vars in a ruleset selected by BOTH `@m
 4. Full test suite + **browser validation with screenshots** (Deliverable 4) on this repo and `validation/corpus/high`.
 5. Update docs (Deliverable 5, after visual sign-off).
 
+## M18 — Glitch fixes (from agent-browser audit)
+
+Audit findings (evidence in session):
+1. 29/110 criteria rows render raw ID instead of name (registry-miss fallback 'name: f.id'). Miss map: P0:4 P1:4 P2:4 P3:3 P4:2 P5:2 P6:2 P7:3 P8:2 P9:3.
+2. 'levelName' referenced by client JS but never set in buildView -> nav chip and hero show bare 'L0', hero-kv has dangling separator.
+3. 'What changed' section: delta stats run together ('L0level0 overall'), fmtDelta(0) renders '0' instead of '±0'.
+4. Lock indicator is a raw emoji; inconsistent across fonts.
+5. Donut sub-label '/ 100' detached from level lockup.
+
+Fixes:
+- CHECK_NAMES fallback map for unmapped pi ids (registry name wins when present).
+- Add levelName to __DATA__; use in nav chip, hero, ladder, donut.
+- Restructure changes section into stat-card grid; neutral chip for zero deltas.
+- Inline SVG lock icon.
+- Tests: no finding where name === id; levelName present; ±0 rendering.
+
+## M19 — Factory-inspired visual refresh
+
+Design tokens extracted from Factory screenshots (pixel analysis):
+- Near-black canvas (#000-#181818), content floats on true black in dark mode.
+- Signature orange primary (#ff5a00, muted #883407), deep-blue secondary (#004a78).
+- Dense data-forward layout: thin-ruled criterion rows, ~33 text rows per screen.
+
+Changes:
+- Palette swap (dark: true-black + orange accent; light keeps identity with orange accent).
+- Denser layout: tighter padding/radius, thin-ruled criterion rows instead of boxed table.
+- Hero: large 'L2 — Documented' lockup beside donut; provenance as chip row.
+- Level ladder -> accordion sections (locked collapsed, current expanded, gate-pillar chips).
+- NO framework: CDN breaks offline self-containment (0 network requests is an acceptance item); vendoring blows the 500KB guard. Hand-rolled CSS with Factory design tokens.
+- Re-validate: full interaction matrix + screenshots light/dark on both repos + pixel-diff hero/ladder/criteria before vs after.
+
 ## Non-goals / guardrails
 
 - No new runtime dependencies (keep the zero-dep engine).

@@ -18,6 +18,19 @@ const LEVEL_DESC: Record<string, string> = {
   L5: 'Self-improving systems with sophisticated orchestration.',
 };
 
+// Fallback display names for pi checks with no Droid-criterion mapping (M18 glitch #1).
+const CHECK_NAMES: Record<string, string> = {
+  'P0.2': 'Run/usage section in README', 'P0.4': 'Changelog or version history', 'P0.5': 'Examples directory',
+  'P0.6': 'H1 title in README', 'P1.2': 'Enforceable rules + verified commands in AGENTS.md', 'P1.3': 'Contributing docs',
+  'P1.5': 'Task shortcut for agents', 'P1.8': 'Connector integrations', 'P2.2': 'Test runner configured',
+  'P2.3': 'Run-test one-liner', 'P2.5': 'Test fixtures', 'P2.6': 'Fast/smoke test path',
+  'P3.3': 'Root scripts documented', 'P3.4': 'Dependency manifest', 'P3.6': 'Dev/prod dependency split',
+  'P4.1': 'CI workflow', 'P4.2': 'CI runs real tests + lint', 'P5.4': 'No mega-files', 'P5.5': 'Consistent config files',
+  'P6.2': 'No committed secrets', 'P6.3': 'No tracked .env files', 'P7.2': 'No silent error swallowing',
+  'P7.3': 'Mock/dev observability path', 'P7.4': 'Log level configuration', 'P8.4': 'Pinned tool versions',
+  'P8.5': 'Non-GUI run path', 'P9.1': 'Clear entry points', 'P9.2': 'Legible repo shape', 'P9.4': 'Per-module docs',
+};
+
 const esc = (s: unknown): string =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
@@ -79,7 +92,7 @@ function levelStates(pillars: Record<string, { pct: number }>): Array<{ lvl: str
 
 // Trimmed serializable view of the report for __DATA__.
 interface ReportView {
-  level: string; overall: number; droidPassRate: number; droidScoring: boolean;
+  level: string; levelName: string; overall: number; droidPassRate: number; droidScoring: boolean;
   repo: { path: string; language: string };
   run: { date: string; model: string; strict: boolean; commitHash: string; branch: string; hasLocalChanges: boolean; hasNonRemoteCommits: boolean };
   rubric_version: string; config_hash: string;
@@ -100,7 +113,7 @@ function buildView(report: ReadinessReport, history: HistoryEntry[]): ReportView
       id: f.id, pillar: f.pillar, pass: !!f.pass, skipped: !!f.skipped,
       severity: f.severity, difficulty: f.difficulty || 'intermediate',
       evidence: f.evidence, app: f.app,
-      name: crit ? crit.name : f.id,
+      name: crit ? crit.name : (CHECK_NAMES[f.id] || f.id),
       droidLevel: crit ? crit.level : null,
       scope: crit ? crit.scope : 'repo',
     };
@@ -119,7 +132,7 @@ function buildView(report: ReadinessReport, history: HistoryEntry[]): ReportView
       }
     : null;
   return {
-    level: report.level, overall: report.overall, droidPassRate: report.droidPassRate, droidScoring: report.droidScoring,
+    level: report.level, levelName: LEVEL_NAMES[report.level] || report.level, overall: report.overall, droidPassRate: report.droidPassRate, droidScoring: report.droidScoring,
     repo: report.repo, run: report.run, rubric_version: report.rubric_version, config_hash: report.config_hash,
     pillars, apps: report.apps, punchlist: report.punchlist, findings,
     history: history.map((h) => ({ date: h.date, level: h.level, overall: h.overall })),
@@ -139,27 +152,27 @@ export function renderHtml(report: ReadinessReport, opts: { history?: HistoryEnt
 <title>Agent Readiness — ${esc(repoName)}</title>
 <style>
 :root {
-  --bg: #f6f7f9; --card: #ffffff; --ink: #1a1d21; --muted: #6b7280; --line: #e5e7eb;
-  --accent: #4f46e5; --accent-soft: #eef2ff;
-  --ok: #16a34a; --ok-soft: #f0fdf4; --warn: #d97706; --warn-soft: #fffbeb;
-  --bad: #dc2626; --bad-soft: #fef2f2; --skip: #9ca3af; --skip-soft: #f3f4f6;
-  --track: #e5e7eb; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --bg: #fafafa; --card: #ffffff; --ink: #16181d; --muted: #6b7280; --line: #e8e8ea;
+  --accent: #e85400; --accent-soft: #fff3eb; --accent-2: #005a94; --accent-2-soft: #eaf3f9;
+  --ok: #149348; --ok-soft: #edfaf1; --warn: #b45309; --warn-soft: #fdf6e7;
+  --bad: #cc2929; --bad-soft: #fdeeed; --skip: #8a8f98; --skip-soft: #f2f3f5;
+  --track: #e8e8ea; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #0f1115; --card: #171a21; --ink: #e5e7eb; --muted: #9ca3af; --line: #2a2f3a;
-  --accent: #818cf8; --accent-soft: #1e1b4b;
-  --ok: #22c55e; --ok-soft: #052e16; --warn: #f59e0b; --warn-soft: #451a03;
-  --bad: #ef4444; --bad-soft: #450a0a; --skip: #6b7280; --skip-soft: #1f2937;
-  --track: #2a2f3a; color-scheme: dark;
+  --bg: #000000; --card: #101012; --ink: #ececee; --muted: #8b8b93; --line: #232326;
+  --accent: #ff5a00; --accent-soft: #1c1208; --accent-2: #3d9ad6; --accent-2-soft: #0a1620;
+  --ok: #2fbf5f; --ok-soft: #07190d; --warn: #e79a3c; --warn-soft: #1f1505;
+  --bad: #f25555; --bad-soft: #200a0a; --skip: #6a6a72; --skip-soft: #16161a;
+  --track: #232326; color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f1115; --card: #171a21; --ink: #e5e7eb; --muted: #9ca3af; --line: #2a2f3a;
-    --accent: #818cf8; --accent-soft: #1e1b4b;
-    --ok: #22c55e; --ok-soft: #052e16; --warn: #f59e0b; --warn-soft: #451a03;
-    --bad: #ef4444; --bad-soft: #450a0a; --skip: #6b7280; --skip-soft: #1f2937;
-    --track: #2a2f3a; color-scheme: dark;
+    --bg: #000000; --card: #101012; --ink: #ececee; --muted: #8b8b93; --line: #232326;
+    --accent: #ff5a00; --accent-soft: #1c1208; --accent-2: #3d9ad6; --accent-2-soft: #0a1620;
+    --ok: #2fbf5f; --ok-soft: #07190d; --warn: #e79a3c; --warn-soft: #1f1505;
+    --bad: #f25555; --bad-soft: #200a0a; --skip: #6a6a72; --skip-soft: #16161a;
+    --track: #232326; color-scheme: dark;
   }
 }
 * { box-sizing: border-box; }
@@ -169,6 +182,7 @@ nav { position: sticky; top: 0; z-index: 10; background: var(--card); border-bot
 nav .inner { max-width: 1060px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 nav .brand { font-weight: 700; font-size: 14px; }
 nav .brand .dot { color: var(--accent); }
+nav .level-chip.chip.level { font-variant-numeric: tabular-nums; }
 nav a { color: var(--muted); text-decoration: none; font-size: 13px; }
 nav a:hover { color: var(--ink); }
 nav .level-chip { margin-left: auto; }
@@ -178,22 +192,25 @@ nav .level-chip { margin-left: auto; }
 .chip.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 .chip.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
 .chip.skip { background: var(--skip-soft); color: var(--skip); border-color: transparent; }
-section { margin-top: 40px; }
+section { margin-top: 32px; }
 h2 { font-size: 19px; margin: 0 0 4px; }
 h2 .sub { display: block; font-size: 13px; font-weight: 400; color: var(--muted); margin-top: 2px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
 .hero { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
 .hero .donut { width: 150px; height: 150px; flex: none; }
 .donut-num { font-size: 30px; font-weight: 700; fill: var(--ink); }
 .donut-sub { font-size: 12px; fill: var(--muted); }
+.donut-sub2 { font-size: 10px; fill: var(--accent); font-weight: 600; letter-spacing: 0.02em; }
 .hero .facts { display: flex; flex-direction: column; gap: 8px; min-width: 260px; flex: 1; }
 .hero .facts .big { font-size: 22px; font-weight: 700; }
+.hero .facts .lockup { font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: 0.01em; }
+.hero .facts .lockup .sep { color: var(--muted); font-weight: 400; }
 .hero .facts .kv { font-size: 13px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
 .hero .facts .kv b { color: var(--ink); font-weight: 600; }
 .prov { margin-top: 14px; font-size: 12.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); }
 .prov .dirty { color: var(--warn); }
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
-.stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
 .stat .n { font-size: 24px; font-weight: 700; }
 .stat .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .stat .n .delta-up { color: var(--ok); font-size: 15px; }
@@ -204,6 +221,7 @@ h2 .sub { display: block; font-size: 13px; font-weight: 400; color: var(--muted)
 .rung.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .rung .lvl { font-weight: 700; font-size: 15px; }
 .rung .lvl .nm { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+.lockicon { width: 12px; height: 12px; vertical-align: -1.5px; color: var(--muted); }
 .rung .desc { font-size: 13px; color: var(--muted); }
 .bar { height: 10px; border-radius: 999px; background: var(--track); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 999px; }
@@ -228,14 +246,19 @@ h2 .sub { display: block; font-size: 13px; font-weight: 400; color: var(--muted)
 .controls button.f { border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; cursor: pointer; }
 .controls button.f.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 .controls input { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 6px 10px; font-size: 13px; min-width: 200px; flex: 1; max-width: 320px; }
-table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 13.5px; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 13px; }
 tr.crit { border-top: 1px solid var(--line); cursor: pointer; }
 tr.crit:hover { background: var(--accent-soft); }
+tr.crit td { padding: 7px 12px; }
 td, th { padding: 9px 12px; text-align: left; vertical-align: top; }
 th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); background: var(--card); border-bottom: 1px solid var(--line); }
 td .nm { font-weight: 600; }
 td .cid { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-td .dot { display: inline-block; width: 10px; height: 10px; border-radius: 999px; margin-right: 6px; vertical-align: baseline; }
+td .dot { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 8px; vertical-align: baseline; }
+td .pill { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; border-radius: 5px; padding: 1.5px 7px; }
+td .pill.pass { background: var(--ok-soft); color: var(--ok); }
+td .pill.fail { background: var(--bad-soft); color: var(--bad); }
+td .pill.skip { background: var(--skip-soft); color: var(--skip); }
 td .dot.pass { background: var(--ok); }
 td .dot.fail { background: var(--bad); }
 td .dot.skip { background: var(--skip); }
@@ -270,6 +293,7 @@ footer .apps li { margin-top: 2px; }
   <div id="hero-donut"></div>
   <div class="facts">
     <div class="big" id="hero-repo"></div>
+    <div class="lockup" id="hero-lockup"></div>
     <div class="kv" id="hero-kv"></div>
   </div>
 </div>
@@ -299,7 +323,7 @@ footer .apps li { margin-top: 2px; }
   <input id="q" type="search" placeholder="Filter by name, id, pillar…">
 </div>
 <table id="crit-table">
-<thead><tr><th style="width:34px"></th><th>Criterion</th><th style="width:70px">Droid</th><th style="width:80px">Scope</th><th style="width:90px">Difficulty</th></tr></thead>
+<thead><tr><th style="width:76px">Status</th><th>Criterion</th><th style="width:70px">Droid</th><th style="width:80px">Scope</th><th style="width:90px">Difficulty</th></tr></thead>
 <tbody id="crit-body"></tbody>
 </table>
 <div class="empty" id="crit-empty" style="display:none">No criteria match the current filter.</div>
@@ -317,25 +341,27 @@ footer .apps li { margin-top: 2px; }
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   };
   var colorFor = function (p) { return p >= 70 ? 'var(--ok)' : p >= 40 ? 'var(--warn)' : 'var(--bad)'; };
-  var fmtDelta = function (d) { return d == null ? '' : (d > 0 ? '+' : '') + d.toFixed(1).replace(/\.0$/, ''); };
+  var fmtDelta = function (d) { if (d == null) return ''; var t = (d > 0 ? '+' : '') + d.toFixed(1).replace(/\.0$/, ''); return t === '0' ? '±0' : t; };
 
   // nav + hero
   var repoName = D.repo.path.split('/').pop() || D.repo.path;
-  document.getElementById('nav-level').textContent = D.level + ' · ' + (D.levels.names ? '' : '') + D.level;
-  document.getElementById('nav-level').textContent = D.level;
+  document.getElementById('nav-level').textContent = D.level + ' · ' + D.levelName;
   document.getElementById('hero-donut').innerHTML = [
     '<svg class="donut" viewBox="0 0 140 140" role="img" aria-label="overall score">',
     '<circle cx="70" cy="70" r="54" fill="none" stroke="var(--track)" stroke-width="12"/>',
     '<circle cx="70" cy="70" r="54" fill="none" stroke="' + colorFor(D.overall) + '" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + (Math.min(100, Math.max(0, D.overall)) / 100 * 339.3).toFixed(1) + ' 339.3" transform="rotate(-90 70 70)"/>',
-    '<text x="70" y="66" text-anchor="middle" class="donut-num">' + Math.round(D.overall) + '</text>',
-    '<text x="70" y="88" text-anchor="middle" class="donut-sub">/ 100</text></svg>'
+    '<text x="70" y="62" text-anchor="middle" class="donut-num">' + Math.round(D.overall) + '</text>',
+    '<text x="70" y="82" text-anchor="middle" class="donut-sub">/ 100</text>',
+    '<text x="70" y="98" text-anchor="middle" class="donut-sub2">' + D.level + ' ' + D.levelName + '</text></svg>'
   ].join('');
   document.getElementById('hero-repo').textContent = repoName;
+  document.getElementById('hero-lockup').innerHTML =
+    '<span>' + D.level + '</span> <span class="sep">—</span> <span>' + esc(D.levelName) + '</span>';
   var passed = D.findings.filter(function (f) { return f.pass && !f.skipped; }).length;
   var failed = D.findings.filter(function (f) { return !f.pass && !f.skipped; }).length;
   var skipped = D.findings.filter(function (f) { return f.skipped; }).length;
   document.getElementById('hero-kv').innerHTML =
-    '<b>' + D.level + '</b> ' + esc(D.levelName) +
+    '<b>' + D.level + ' ' + esc(D.levelName) + '</b>' +
     ' · <b>' + D.droidPassRate.toFixed(1) + '%</b> Droid-compatible pass rate' +
     ' · <b>' + passed + '/' + (passed + failed) + '</b> checks passing';
   var prov = [];
@@ -380,18 +406,17 @@ footer .apps li { margin-top: 2px; }
         '<td style="text-align:right"><span class="chip ' + cls2 + '">' + fmtDelta(dd) + '</span></td></tr>';
     }).join('');
     var histVals = D.history.map(function (h) { return h.overall; }).concat([D.overall]);
-    changesBody.innerHTML = '<div class="card" style="display:flex;gap:28px;flex-wrap:wrap;align-items:center">' +
-      '<div><div class="n" style="font-size:24px;font-weight:700">' + (D.delta.level) + '</div>' +
-      '<div class="l" style="font-size:12px;color:var(--muted)">level</div></div>' +
-      '<div><div style="font-size:24px;font-weight:700;color:' + (D.delta.overall > 0 ? 'var(--ok)' : D.delta.overall < 0 ? 'var(--bad)' : 'var(--ink)') + '">' + fmtDelta(D.delta.overall) + ' overall</div>' +
-      '<div class="l" style="font-size:12px;color:var(--muted)">vs previous run</div></div>' +
-      '<svg class="spark" viewBox="0 0 220 48"><polyline points="' + histVals.map(function (v, i) {
-        var min = Math.min.apply(null, histVals.concat([0])); var max = Math.max.apply(null, histVals.concat([100])); var range = max - min || 1;
-        var x = histVals.length === 1 ? 110 : (i / (histVals.length - 1)) * 212 + 4;
-        var y = 42 - ((v - min) / range) * 36;
-        return x.toFixed(1) + ',' + y.toFixed(1);
-      }).join(' ') + '" fill="none" stroke="var(--accent)" stroke-width="2"/></svg>' +
-      '<table style="max-width:420px"><thead><tr><th>Pillar</th><th style="text-align:right">Δ pct</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    var sparkPts = histVals.map(function (v, i) {
+      var min = Math.min.apply(null, histVals.concat([0])); var max = Math.max.apply(null, histVals.concat([100])); var range = max - min || 1;
+      var x = histVals.length === 1 ? 110 : (i / (histVals.length - 1)) * 212 + 4;
+      var y = 42 - ((v - min) / range) * 36;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    changesBody.innerHTML = '<div class="stat-row" style="margin-top:0">' +
+      '<div class="stat"><div class="n">' + esc(D.delta.level) + '</div><div class="l">level</div></div>' +
+      '<div class="stat"><div class="n" style="color:' + (D.delta.overall > 0 ? 'var(--ok)' : D.delta.overall < 0 ? 'var(--bad)' : 'var(--ink)') + '">' + fmtDelta(D.delta.overall) + '</div><div class="l">overall vs previous run</div></div>' +
+      '<div class="stat"><div class="n" style="display:flex;align-items:center;gap:10px"><svg class="spark" viewBox="0 0 220 48"><polyline points="' + sparkPts + '" fill="none" stroke="var(--accent)" stroke-width="2"/></svg></div><div class="l">score history (' + D.history.length + ' run' + (D.history.length === 1 ? '' : 's') + ')</div></div>' +
+      '</div><div class="card" style="margin-top:14px"><table style="max-width:480px"><thead><tr><th>Pillar</th><th style="text-align:right">Δ pct</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   // level ladder
@@ -403,7 +428,7 @@ footer .apps li { margin-top: 2px; }
     var isCurrent = n === currentNum;
     var cls3 = 'rung' + (L.unlocked ? '' : ' locked') + (isCurrent ? ' current' : '');
     return '<div class="' + cls3 + '">' +
-      '<div class="lvl">' + esc(L.lvl) + '<span class="nm">' + esc(LN[L.lvl] || '') + (L.unlocked ? '' : ' 🔒') + '</span></div>' +
+      '<div class="lvl">' + esc(L.lvl) + '<span class="nm">' + esc(LN[L.lvl] || '') + (L.unlocked ? '' : ' <svg class="lockicon" viewBox="0 0 16 16" aria-label="locked"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="currentColor"/><path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>') + '</span></div>' +
       '<div class="desc">' + esc(LD[L.lvl] || '') + (isCurrent ? ' — current level' : '') + '</div>' +
       '<div><div class="pctline"><span>' + L.pct + '% of gate pillars</span><span>' + (L.unlocked ? 'unlocked' : 'locked') + '</span></div>' +
       '<div class="bar"><i style="width:' + Math.min(100, L.pct) + '%;background:' + colorFor(L.pct) + '"></i></div></div></div>';
@@ -458,7 +483,7 @@ footer .apps li { margin-top: 2px; }
     });
     body.innerHTML = rows.map(function (f) {
       var st = f.skipped ? 'skip' : (f.pass ? 'pass' : 'fail');
-      return '<tr class="crit" data-id="' + esc(f.id) + '"><td><span class="dot ' + st + '"></span></td>' +
+      return '<tr class="crit" data-id="' + esc(f.id) + '"><td><span class="dot ' + st + '"></span><span class="pill ' + st + '">' + st + '</span></td>' +
         '<td><span class="nm">' + esc(f.name) + '</span> <span class="cid">' + esc(f.id) + (f.app ? ' · ' + esc(f.app) : '') + '</span></td>' +
         '<td>' + (f.droidLevel ? 'L' + f.droidLevel : '—') + '</td>' +
         '<td>' + esc(f.scope) + '</td>' +

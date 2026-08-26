@@ -82,5 +82,23 @@ eq('html:false skips report.html', fs.existsSync(path.join(dir2, 'report.html'))
 // size guard
 eq('html under 500KB', onDisk2.length < 500 * 1024, true);
 
+// M18 glitch fixes
+const m18 = renderHtml(report);
+const m18view = JSON.parse(m18.match(/window\.__DATA__ = (\{.*\});<\/script>/s)![1]);
+eq('levelName present', typeof m18view.levelName, 'string');
+eq('levelName non-empty', m18view.levelName.length > 0, true);
+const unnamed = m18view.findings.filter((f: any) => f.name === f.id);
+eq('no findings where name === id', unnamed.length, 0);
+eq('fallback name P0.2 applied', m18view.findings.some((f: any) => f.id === 'P0.2' && f.name !== 'P0.2'), true);
+// ±0 rendering: history identical to current → zero deltas
+const samePrev: HistoryEntry = {
+  date: report.run.date, rubric_version: report.rubric_version, config_hash: report.config_hash,
+  level: report.level, overall: report.overall,
+  perPillar: Object.fromEntries(Object.entries(report.pillars).map(([k, v]) => [k, v.pct])),
+};
+const zeroHtml = renderHtml(report, { history: [samePrev] });
+eq('zero delta rendered as ±0', zeroHtml.includes('±0') || zeroHtml.includes('\\u00b10'), true);
+eq('svg lock icon present (no emoji)', m18.includes('lockicon') && !m18.includes('🔒'), true);
+
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);
