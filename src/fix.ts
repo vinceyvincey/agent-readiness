@@ -65,3 +65,46 @@ export function writeFixes(target: string, drafts: FixDraft[], apply = false): s
   }
   return dir;
 }
+
+// M9: Build a grounded agentic remediation prompt from the report's punchlist.
+// This is the single source the extension and CLI both use to drive agent-driven fixes.
+export function agentPromptFor(report: ReadinessReport): string {
+  const failed = report.findings.filter((c) => !c.pass);
+  const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
+  const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
+  const sorted = failed.sort((a, b) =>
+    (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
+    (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1)
+  );
+
+  const items = sorted.slice(0, 15).map((c) =>
+    `- [${c.severity}/${c.difficulty || 'intermediate'}] ${c.pillar} ${c.id}: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}`
+  ).join('\n');
+
+  const appInfo = Object.keys(report.apps).length > 1
+    ? `\n\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps).map(([p, a]) => `${p} (${a.name})`).join(', ')}. Apply app-scoped fixes to the correct app directory.`
+    : '';
+
+  return `You are remediating agent-readiness failures in a codebase.
+
+Current readiness: ${report.level} (${report.overall}/100), rubric ${report.rubric_version}.
+
+The following checks are failing, sorted by severity then difficulty (cheapest high-impact fixes first):
+
+${items}${appInfo}
+
+Instructions:
+1. Work through the failing checks from top to bottom (highest severity, easiest difficulty first).
+2. For each check, create or modify the specific file(s) needed to pass it. Use the evidence as a guide.
+3. Only touch files that are directly relevant to a failing check — do not refactor unrelated code.
+4. After applying fixes, re-run the readiness engine to verify the score improved:
+   node --experimental-strip-types src/cli.ts . --json
+5. If a mandatory gate (P2 testing or P6 security) would regress from your change, stop and report it.
+6. Prefer project-specific, real content over generic templates. Read existing code to match conventions.
+7. For AGENTS.md, include backtick-quoted commands that match the project's actual scripts.
+
+Safety:
+- Default to dry-run: show proposed changes before applying.
+- Never commit secrets or remove existing tests.
+- If a fix requires domain knowledge you don't have, note it and skip to the next item.`;
+}

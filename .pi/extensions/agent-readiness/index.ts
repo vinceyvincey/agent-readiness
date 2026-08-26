@@ -32,14 +32,17 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand('readiness-fix', {
-    description: 'Show the high-priority remediation punchlist to apply.',
+    description: 'Run an agent session to remediate failing readiness checks (grounded by the latest report).',
     handler: async (args, ctx) => {
       const target = (args && args.trim()) || ctx.cwd;
       const engine = await loadEngine();
       const report = engine.runReadiness(target, { model: ctx.model?.id || 'pi' });
-      const top = report.punchlist.filter((p: any) => p.severity === 'high').slice(0, 5);
-      if (!top.length) { ctx.ui.notify('No high-priority remediation needed.', 'info'); return 'No high-priority remediation.'; }
-      return top.map((p: any) => `[${p.pillar} ${p.id}] ${p.action}`).join('\n');
+      // Build the grounded remediation prompt from the report's punchlist.
+      const prompt = engine.agentPromptFor(report);
+      // Delegate to the agent: it reads the prompt, plans, and implements fixes.
+      // The user reviews changes as they happen (normal pi session flow).
+      ctx.ui.notify(`Readiness-fix: ${report.punchlist.length} failing checks. Delegating to agent session.`, 'info');
+      return prompt;
     },
   });
 

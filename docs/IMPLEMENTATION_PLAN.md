@@ -57,6 +57,46 @@
 - Engine single-source scoring; skill only orchestrates.
 - Dry-run default; .agent-readiness/ git-ignored writable opt-in.
 
+## M6 - Check-correctness & git-aware foundations - DONE
+- [x] Fixed P6.2 (was no-op): real tracked-file secret scan via `git ls-files` + 8 secret patterns + binary-file filtering.
+- [x] Fixed P5.3 (was broken `read(r+'')`): proper manifest reading for pyproject/go/cargo type-check detection.
+- [x] Fixed P6.3 (was filesystem-only): git-aware `git ls-files` check for tracked .env; .env.example/.env.sample excluded.
+- [x] Removed dead code (`anyPatt`, `require_dummy`).
+- [x] Git provenance stamped in report.run: commitHash, branch, hasLocalChanges, hasNonRemoteCommits.
+- [x] test/checks.test.ts: 9 assertions (P6.2 planted-secret, P5.3 pyproject/go, P6.3 git-ignored/tracked .env).
+- Verify: all 4 test suites pass; self-score unchanged (L0/30); P6.2 scans 71 real tracked files.
+
+## M7 - Anti-gaming & check deepening - DONE
+- [x] README anti-stub (P0.1): strip frontmatter + HTML comments, require >=2 content lines + >200 bytes.
+- [x] AGENTS.md command verification (P1.2): extract backtick/fenced commands, verify >=1 matches a real script/target.
+- [x] .gitignore anti-one-liner (P6.1): require >=3 distinct non-comment patterns.
+- [x] Coverage threshold guard (P2.4): fail if threshold=0 (decorative); pass only on real threshold > 0.
+- [x] CI-runs-tests verification (P4.2): parse workflow YAML for real test/lint invocations (strip echo stubs).
+- [x] Real secret scanning (P6.4): optional gitleaks/trufflehog on PATH, fallback to regex scan.
+- [x] Test-speed proxy (P2.6): detect fast/smoke scripts, vitest/jest testPathIgnorePatterns.
+- [x] Difficulty axis: each check tagged basic/intermediate/advanced; punchlist sorted severity→difficulty.
+- [x] Droid harness surfaces: P1.6 (hooks), P1.7 (custom droids), P1.8 (connectors) — .factory/ + .pi/ paths.
+- [x] test/deepening.test.ts: 16 assertions; rubric bumped to 0.2.0; corpus recalibrated (high L2/81).
+- Verify: all 5 test suites pass; E1 harness all pass (H3, H5, H1 gap=70, H8).
+
+## M8 - Monorepo / application scope - DONE
+- [x] src/discover.ts: discoverApps(root) detects package.json workspaces, pnpm-workspace, turbo/nx/lerna, apps/*/packages/ globs, go.work, Cargo workspace members, Python packages/.
+- [x] Pillar scope tagging: P0/P1/P4/P6/P8 = repo-scoped; P2/P3/P5/P7/P9 = app-scoped.
+- [x] Engine runs app-scoped checks per discovered app; aggregate score = sum(passed)/sum(total) across apps.
+- [x] Report includes `apps` map + per-app `perApp` breakdown for app-scoped pillars.
+- [x] Findings for app-scoped checks carry `app` field.
+- [x] test/monorepo.test.ts: 17 assertions (discovery, perApp, app field, no single-app regression).
+- Verify: all 6 test suites pass; E1 harness all pass; single-app repos unchanged (no regression).
+
+## M9 - Agentic remediation - DONE
+- [x] src/fix.ts: agentPromptFor(report) builds grounded remediation prompt (severity+difficulty sorted, evidence, app context, safety instructions).
+- [x] Extension /readiness-fix rewritten to delegate to agent session with grounded prompt.
+- [x] CLI --fix --agent: shells out to `pi -p <prompt>`; prints prompt if pi not on PATH; re-runs readiness post-fix.
+- [x] Static --fix (no --agent) unchanged for headless/CI use.
+- [x] Safety: dry-run default, only touch files for failing checks, mandatory-gate regression detection, re-run verification.
+- [x] test/fix.test.ts: 13 assertions (prompt content, monorepo awareness, static draft no regression).
+- Verify: all 6 test suites pass; E1 harness all pass.
+
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).
 - Every deterministic check documented: file glob + evidence rule + pass/fail.

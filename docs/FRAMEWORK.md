@@ -62,3 +62,11 @@ Weights configurable (default equal 10% each) in agent-readiness.config.json.
 - **Single source of truth:** the engine acts as scoring authority; the skill/prompt only orchestrates and reads the deterministic report. No dual scoring implementations.
 - **Honest proxy:** structural scoring is explicit that it measures readiness hygiene and feedback-loop proxies, not real behavior. Real-behavior verification is a separate verify mode outside the existence score.
 - **Write safety:** default is dry-run (report to stdout); report/history writes are opt-in under a git-ignored .agent-readiness/ directory.
+
+## v0.3 enhancements (M6-M9)
+- **Git-aware checks:** secret scanning (P6.2) and .env tracking (P6.3) now use `git ls-files` to inspect tracked files, not just filesystem presence. Reports stamp commit-hash + branch + dirty-state provenance.
+- **Anti-gaming deepening:** README anti-stub (content-line count, not just bytes), AGENTS.md command verification (backtick commands must match real scripts), .gitignore minimum-pattern count, coverage threshold=0 guard (decorative coverage fails), CI-runs-tests verification (real test invocations, not echo stubs).
+- **Difficulty axis:** each check carries `difficulty: basic | intermediate | advanced` (file-existence / content-regex / git-aware-external-tool). The punchlist is sorted by severity then difficulty so the cheapest high-impact fix surfaces first.
+- **Droid harness surface checks:** P1 expanded with hooks (P1.6), custom droids/subagents (P1.7), and connectors (P1.8) — mirroring Droid's `.factory/` surfaces.
+- **Monorepo / application scope:** pillars are tagged `repo` or `app` scoped. App-scoped pillars (P2, P3, P5, P7, P9) run per discovered sub-application; the report includes an `apps` map and per-app `perApp` breakdown. Non-monorepo repos are unaffected (single app at root).
+- **Agentic remediation:** `agentPromptFor(report)` builds a grounded remediation prompt from the punchlist (severity + difficulty + evidence + app context). The extension's `/readiness-fix` delegates to an agent session; the CLI's `--fix --agent` shells out to `pi`. Static `--fix` drafts remain for headless/CI use.

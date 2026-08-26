@@ -13,7 +13,7 @@ const readme_rich = `# Acme Service\n\nA fast, well-documented service for the A
 const readme_thin = '# Acme\n';
 const readme_none = '';
 
-const agents_rich = `# Agent instructions\n\nWorking here you must:\n- run npm test and npm run lint before finishing\n- never commit secrets\n- extend modules under src/: api, domain, infra\n`;
+const agents_rich = `# Agent instructions\n\nWorking here you must:\n- run \`npm test\` and \`npm run lint\` before finishing\n- never commit secrets\n- extend modules under src/: api, domain, infra\n`;
 const agents_thin = 'be nice\n';
 
 const pkg_rich = () => `{
@@ -62,6 +62,10 @@ export function buildHigh(): string {
   WRITE(d, 'package.json', "{\n  \"name\": \"acme\", \"version\": \"1.0.0\", \"main\": \"src/api/index.ts\",\n  \"scripts\": { \"test\": \"vitest --run --coverage\", \"build\": \"tsc\", \"lint\": \"eslint src\", \"start\": \"node dist\" },\n  \"engines\": { \"node\": \">=20\" }\n}");
   WRITE(d, '.github/workflows/audit.yml', 'name: audit\non: push\njobs:\n  audit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm audit\n');
   WRITE(d, 'src/bug.ts', bugHigh);
+  // M7: droid harness surface files for P1.6/P1.7/P1.8
+  WRITE(d, '.factory/hooks.json', '{\n  "PostToolUse": []\n}\n');
+  WRITE(d, '.factory/droids/reviewer.md', '# Reviewer droid\nReviews code changes.\n');
+  WRITE(d, '.factory/connectors.json', '{ "github": {} }\n');
   return d;
 }
 
@@ -87,4 +91,4 @@ function main() {
   buildHigh(); buildMedium(); buildLow();
   console.log('corpus built at ' + BASE + ' (high/med/low)');
 }
-if (import.meta.main) main();
+if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) main();

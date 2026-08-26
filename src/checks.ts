@@ -2,13 +2,16 @@
 // Numeric score uses only these; the narrative judgment is separate (see engine).
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 export type Repo = { root: string };
 
-export type CheckResult = { id: string; pillar: string; pass: boolean; evidence: string; severity: 'high' | 'med' | 'low' };
+export type Difficulty = 'basic' | 'intermediate' | 'advanced';
+export type CheckResult = { id: string; pillar: string; pass: boolean; evidence: string; severity: 'high' | 'med' | 'low'; difficulty?: Difficulty; app?: string };
 
 export interface Pillar {
   id: string;
+  scope: 'repo' | 'app';
   checks: Array<(r: Repo) => CheckResult>;
 }
 
@@ -17,8 +20,154 @@ const has = (r: Repo, ...parts: string[]) => fs.existsSync(path.join(r.root, ...
 const read = (r: Repo, ...parts: string[]) => { try { return fs.readFileSync(path.join(r.root, ...parts), 'utf8'); } catch { return ''; } };
 const sizeOf = (r: Repo, ...parts: string[]) => { try { return fs.statSync(path.join(r.root, ...parts)).size; } catch { return 0; } };
 const dirs = (r: Repo) => { try { return fs.readdirSync(r.root); } catch { return []; } };
-const anyPatt = (r: Repo, names: string[], candidates: string[][] = [names]) =>
-  candidates.some((c) => names.some((n) => has(r, ...c, n))) || names.some((n) => has(r, n));
+
+// ---- git-aware helpers ----
+// Enumerate files tracked by git (falls back to empty array if not a git repo).
+const gitTracked = (r: Repo): string[] => {
+  try {
+    const res = spawnSync('git', ['ls-files'], { cwd: r.root, encoding: 'utf8', timeout: 5000 });
+    if (res.status === 0 && res.stdout) return res.stdout.split('\n').filter(Boolean);
+  } catch { /* not git or git missing */ }
+  return [];
+};
+
+// Read a file by relative path from repo root.
+const readRel = (r: Repo, rel: string): string => {
+  try { return fs.readFileSync(path.join(r.root, rel), 'utf8'); } catch { return ''; }
+};
+
+// Check whether a CLI tool is available on PATH.
+function toolOnPath(name: string): boolean {
+  try {
+    const res = spawnSync(name, ['--version'], { encoding: 'utf8', timeout: 3000 });
+    return res.status === 0 || (res.stderr && res.stderr.length > 0); // some tools print to stderr
+  } catch { return false; }
+}
+
+// ---- anti-gaming helpers ----
+// Strip YAML frontmatter and HTML comments from markdown, return residual text.
+function stripBoilerplate(text: string): string {
+  let t = text.replace(/^---\n[\s\S]*?\n---\n?/, ''); // frontmatter
+  t = t.replace(/<!--[\s\S]*?-->/g, '');               // HTML comments
+  return t;
+}
+
+// Count non-empty lines that aren't just a heading or frontmatter border.
+function contentLineCount(text: string): number {
+  const stripped = stripBoilerplate(text);
+  return stripped.split('\n').filter((l) => {
+    const t = l.trim();
+    return t.length > 0 && !t.startsWith('#') && !t.startsWith('---');
+  }).length;
+}
+
+// Extract commands from markdown: backtick-quoted commands and fenced code block lines.
+function extractCommands(text: string): string[] {
+  const cmds: string[] = [];
+  // backtick-quoted: `npm test`, `make lint`
+  const tickMatches = text.match(/`([^`\n]{3,80})`/g) || [];
+  for (const m of tickMatches) cmds.push(m.replace(/`/g, '').trim());
+  // fenced code blocks: lines inside ``` blocks that look like commands
+  const fenced = text.match(/```[\s\S]*?```/g) || [];
+  for (const block of fenced) {
+    for (const line of block.split('\n')) {
+      const t = line.trim();
+      if (t && !t.startsWith('```') && !t.startsWith('#') && /\S/.test(t)) cmds.push(t);
+    }
+  }
+  return cmds;
+}
+
+// Check if any extracted command maps to a real script key, Makefile target, or pyproject entry.
+function commandsMatchRealScript(r: Repo, commands: string[]): boolean {
+  const pkg = read(r, 'package.json');
+  const makefile = read(r, 'Makefile');
+  const pyproject = read(r, 'pyproject.toml');
+  const scriptKeys: string[] = [];
+  try { const p = JSON.parse(pkg); if (p.scripts) scriptKeys.push(...Object.keys(p.scripts)); } catch { /* not json */ }
+  const makeTargets = makefile.split('\n').filter((l) => /^[a-zA-Z_-]+:/.test(l)).map((l) => l.split(':')[0].trim());
+  const pyEntries = pyproject.match(/console_scripts[\s\S]*?=(.*)/g) || [];
+
+  for (const cmd of commands) {
+    // `npm test` / `npm run lint` → script key "test" / "lint"
+    const npmRun = cmd.match(/npm\s+(?:run\s+)?(\S+)/);
+    if (npmRun && scriptKeys.includes(npmRun[1])) return true;
+    // `make test` → Makefile target "test"
+    const makeMatch = cmd.match(/make\s+(\S+)/);
+    if (makeMatch && makeTargets.includes(makeMatch[1])) return true;
+    // `pytest` / `python -m pytest` → pyproject pytest config
+    if (/pytest/.test(cmd) && /\[tool\.pytest/.test(pyproject)) return true;
+    // `go test` → go.mod exists
+    if (/go\s+test/.test(cmd) && has(r, 'go.mod')) return true;
+    // `cargo test` → Cargo.toml exists
+    if (/cargo\s+test/.test(cmd) && has(r, 'Cargo.toml')) return true;
+    // direct script key match
+    if (scriptKeys.includes(cmd)) return true;
+  }
+  return false;
+}
+
+// Count distinct non-comment, non-empty .gitignore patterns.
+function gitignorePatternCount(text: string): number {
+  return text.split('\n').filter((l) => {
+    const t = l.trim();
+    return t.length > 0 && !t.startsWith('#');
+  }).length;
+}
+
+// Scan .github/workflows/*.yml for real test/lint invocations (not just echo stubs).
+function scanWorkflowForTestInvocation(r: Repo): { hasTest: boolean; hasLint: boolean; evidence: string } {
+  const wfDir = path.join(r.root, '.github', 'workflows');
+  let hasTest = false, hasLint = false;
+  const files: string[] = [];
+  try { for (const f of fs.readdirSync(wfDir)) if (/\.ya?ml$/i.test(f)) files.push(f); } catch { /* no workflows dir */ }
+  const testCmds = /\b(npm\s+(?:run\s+)?test|npx\s+vitest|npx\s+jest|pytest|make\s+test|go\s+test|cargo\s+test|deno\s+test)\b/;
+  const lintCmds = /\b(npm\s+run\s+lint|npx\s+eslint|npx\s+biome|npx\s+tsc|ruff|flake8|golangci|cargo\s+clippy)\b/;
+  for (const f of files) {
+    const content = read(r, '.github', 'workflows', f);
+    // Strip echo lines so `echo 'npm test'` doesn't count as a real invocation.
+    const stripped = content.split('\n').filter((l) => !/^\s*-?\s*echo\s/i.test(l)).join('\n');
+    if (testCmds.test(stripped)) hasTest = true;
+    if (lintCmds.test(stripped)) hasLint = true;
+  }
+  return { hasTest, hasLint, evidence: `${files.length} workflow(s), test=${hasTest}, lint=${hasLint}` };
+}
+
+// ---- secret-scanning helpers ----
+const SECRET_PATTERNS: RegExp[] = [
+  /BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY/,
+  /-----BEGIN[\s\w]+PRIVATE KEY-----/,
+  /AKIA[0-9A-Z]{16}/,                 // AWS access key
+  /ghp_[A-Za-z0-9]{36}/,              // GitHub PAT
+  /github_pat_[A-Za-z0-9_]{40,}/,     // GitHub fine-grained PAT
+  /sk-[A-Za-z0-9]{20,}/,              // OpenAI-style key
+  /xox[baprs]-[0-9A-Za-z-]{10,}/,     // Slack token
+  /AIza[0-9A-Za-z_-]{35}/,            // Google API key
+];
+const BINARY_EXT = /\.(png|jpg|jpeg|gif|bmp|ico|woff2?|ttf|eot|otf|zip|tar|gz|bz2|jar|class|so|dylib|dll|exe|bin|pdf|mp[34]|mov|webp|wasm)$/i;
+
+// Scan git-tracked files (or a best-effort recursive fallback) for secret patterns.
+function scanTrackedSecrets(r: Repo): { hit: boolean; evidence: string } {
+  let files = gitTracked(r);
+  let source = 'tracked';
+  if (!files.length) {
+    // Not a git repo: best-effort recursive scan (top-level + src/, test/, lib/).
+    files = ['src', 'test', 'lib', ''].flatMap((d) => {
+      try { return fs.readdirSync(path.join(r.root, d), { withFileTypes: true }) .filter((e) => e.isFile()) .map((e) => (d ? d + '/' + e.name : e.name)); } catch { return []; }
+    });
+    source = 'best-effort (no git)';
+  }
+  const candidates = files.filter((f) => !BINARY_EXT.test(f)).slice(0, 200);
+  for (const rel of candidates) {
+    const content = readRel(r, rel);
+    if (!content) continue;
+    for (const pat of SECRET_PATTERNS) {
+      const m = content.match(pat);
+      if (m) return { hit: true, evidence: `secret pattern "${m[0].slice(0, 24)}..." in ${rel}` };
+    }
+  }
+  return { hit: false, evidence: `scanned ${candidates.length} ${source} files, no secret patterns` };
+}
 
 // package-ish manifest names
 const PKG = ['package.json', 'pyproject.toml', 'go.mod', 'Cargo.toml', 'requirements.txt', 'composer.json', 'pubspec.yaml', 'Gemfile', 'mix.exs', 'pom.xml', 'build.gradle'];
@@ -26,80 +175,84 @@ const LOCK = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock',
 const TESTDIRS = ['test', 'tests', '__tests__', 'spec', 'specs'];
 
 const C: Array<() => Pillar> = [
-  () => ({ id: 'P0', checks: [
-    (r) => ({ id: 'P0.1', pillar: 'P0', pass: sizeOf(r, 'README.md') > 200, evidence: `README.md ${sizeOf(r,'README.md')} bytes `, severity: 'high' }),
-    (r) => ({ id: 'P0.2', pillar: 'P0', pass: /run|install|start|usage|quickstart/i.test(read(r, 'README.md')), evidence: 'run/usage section', severity: 'high' }),
-    (r) => ({ id: 'P0.3', pillar: 'P0', pass: has(r, 'docs') || has(r, 'ARCHITECTURE.md'), evidence: 'docs or ARCHITECTURE', severity: 'med' }),
-    (r) => ({ id: 'P0.4', pillar: 'P0', pass: has(r, 'CHANGELOG.md') || /version/i.test(read(r, 'package.json')), evidence: 'changelog or version', severity: 'low' }),
-    (r) => ({ id: 'P0.5', pillar: 'P0', pass: has(r, 'examples') || has(r, 'example'), evidence: 'examples dir', severity: 'low' }),
-    (r) => ({ id: 'P0.6', pillar: 'P0', pass: /^#\s+[^\n]+/.test(read(r, 'README.md')) && read(r,'README.md').length>0, evidence: 'H1 in README', severity: 'med' }),
+  () => ({ id: 'P0', scope: 'repo', checks: [
+    (r) => { const txt = read(r, 'README.md'); const bytes = sizeOf(r, 'README.md'); const lines = contentLineCount(txt); return { id: 'P0.1', pillar: 'P0', pass: bytes > 200 && lines >= 2, evidence: `README.md ${bytes}b, ${lines} content lines`, severity: 'high', difficulty: 'advanced' }; },
+    (r) => ({ id: 'P0.2', pillar: 'P0', pass: /run|install|start|usage|quickstart/i.test(read(r, 'README.md')), evidence: 'run/usage section', severity: 'high', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P0.3', pillar: 'P0', pass: has(r, 'docs') || has(r, 'ARCHITECTURE.md'), evidence: 'docs or ARCHITECTURE', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P0.4', pillar: 'P0', pass: has(r, 'CHANGELOG.md') || /version/i.test(read(r, 'package.json')), evidence: 'changelog or version', severity: 'low', difficulty: 'basic' }),
+    (r) => ({ id: 'P0.5', pillar: 'P0', pass: has(r, 'examples') || has(r, 'example'), evidence: 'examples dir', severity: 'low', difficulty: 'basic' }),
+    (r) => ({ id: 'P0.6', pillar: 'P0', pass: /^#\s+[^\n]+/.test(read(r, 'README.md')) && read(r,'README.md').length>0, evidence: 'H1 in README', severity: 'med', difficulty: 'intermediate' }),
   ]}),
-  () => ({ id: 'P1', checks: [
-    (r) => ({ id: 'P1.1', pillar: 'P1', pass: sizeOf(r, 'AGENTS.md') > 100, evidence: `AGENTS.md ${sizeOf(r,'AGENTS.md')}b`, severity: 'high' }),
-    (r) => ({ id: 'P1.2', pillar: 'P1', pass: /must|always|never|run |\n- /i.test(read(r, 'AGENTS.md')), evidence: 'AGENTS rules', severity: 'high' }),
-    (r) => ({ id: 'P1.3', pillar: 'P1', pass: has(r, 'CONTRIBUTING.md') || sizeOf(r,'AGENTS.md')>200, evidence: 'contrib docs', severity: 'med' }),
-    (r) => ({ id: 'P1.4', pillar: 'P1', pass: has(r, 'mcp.json') || has(r, '.mcp.json') || has(r, 'CLAUDE.md'), evidence: 'agent config/MCP', severity: 'med' }),
-    (r) => ({ id: 'P1.5', pillar: 'P1', pass: has(r, 'Makefile') || has(r, 'justfile') || has(r, 'Taskfile.yml') || has(r, 'scripts', 'setup'), evidence: 'task shortcut', severity: 'low' }),
+  () => ({ id: 'P1', scope: 'repo', checks: [
+    (r) => { const bytes = sizeOf(r, 'AGENTS.md'); const lines = contentLineCount(read(r, 'AGENTS.md')); return { id: 'P1.1', pillar: 'P1', pass: bytes > 100 && lines >= 2, evidence: `AGENTS.md ${bytes}b, ${lines} content lines`, severity: 'high', difficulty: 'advanced' }; },
+    (r) => { const txt = read(r, 'AGENTS.md'); const cmds = extractCommands(txt); const hasRules = /must|always|never|run |\n- /i.test(txt); const cmdVerified = commandsMatchRealScript(r, cmds); return { id: 'P1.2', pillar: 'P1', pass: hasRules && cmdVerified, evidence: cmdVerified ? `AGENTS rules + ${cmds.length} command(s) verified` : 'AGENTS rules but no verified commands', severity: 'high', difficulty: 'advanced' }; },
+    (r) => ({ id: 'P1.3', pillar: 'P1', pass: has(r, 'CONTRIBUTING.md') || sizeOf(r,'AGENTS.md')>200, evidence: 'contrib docs', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P1.4', pillar: 'P1', pass: has(r, 'mcp.json') || has(r, '.mcp.json') || has(r, 'CLAUDE.md'), evidence: 'agent config/MCP', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P1.5', pillar: 'P1', pass: has(r, 'Makefile') || has(r, 'justfile') || has(r, 'Taskfile.yml') || has(r, 'scripts', 'setup'), evidence: 'task shortcut', severity: 'low', difficulty: 'basic' }),
+    (r) => ({ id: 'P1.6', pillar: 'P1', pass: has(r, '.factory', 'hooks.json') || has(r, '.factory', 'settings.json') && /hooks/.test(read(r, '.factory', 'settings.json')) || has(r, '.pi', 'settings.json') && /hooks/.test(read(r, '.pi', 'settings.json')), evidence: 'droid/pi lifecycle hooks', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P1.7', pillar: 'P1', pass: has(r, '.factory', 'droids') || has(r, '.factory', 'subagents') || has(r, '.pi', 'fabric', 'droids'), evidence: 'custom droids/subagents', severity: 'low', difficulty: 'basic' }),
+    (r) => ({ id: 'P1.8', pillar: 'P1', pass: has(r, '.factory', 'connectors.json') || /connectors/i.test(read(r, '.factory', 'settings.json')), evidence: 'connectors integration', severity: 'low', difficulty: 'intermediate' }),
   ]}),
-  () => ({ id: 'P2', checks: [
-    (r) => ({ id: 'P2.1', pillar: 'P2', pass: dirs(r).some((d) => TESTDIRS.includes(d)) || dirs(r).some((f) => /(_test|_spec|\.test|\.spec)\./.test(f)), evidence: 'test files/dir', severity: 'high' }),
-    (r) => ({ id: 'P2.2', pillar: 'P2', pass: /"test"\s*[:=]|jest|vitest|pytest|cypress|make test/i.test(read(r, ...PKG.filter(p=>has(r,p)).slice(0,1)) as string) || has(r, 'jest.config', 'vitest.config', 'pytest.ini'), evidence: 'test config', severity: 'high' }),
-    (r) => ({ id: 'P2.3', pillar: 'P2', pass: /"test"/.test(read(r, 'package.json')) || has(r, 'Makefile') || has(r,'pytest.ini') || /\[tool.pytest|pytest|coverage/.test(read(r,'pyproject.toml')), evidence: 'run-test one-liner', severity: 'high' }),
-    (r) => ({ id: 'P2.4', pillar: 'P2', pass: (()=>{ const c=read(r,'package.json'); const py=read(r,'pyproject.toml')+read(r,'tox.ini')+read(r,'.coveragerc'); return /coverage\s*[:=]\s*[1-9]/.test(c) || /--coverage/.test(c) || has(r,'.nycrc','coveragerc') || /\[tool.coverage|fail_under/.test(py); })(), evidence: 'coverage threshold', severity: 'med' }),
-    (r) => ({ id: 'P2.5', pillar: 'P2', pass: dirs(r).some((d)=>['fixtures','testdata','__fixtures__'].includes(d)) , evidence: 'fixtures', severity: 'low' }),
-    (r) => ({ id: 'P2.6', pillar: 'P2', pass: /\^|<test>|--runInBand|--watch/i.test(read(r, 'package.json')) || has(r,'vitest.config','jest.config') || /-m\s*\"?(fast|smoke)?/.test(read(r,'pyproject.toml')+read(r,'Makefile')), evidence: 'fast/smoke path', severity: 'med' }),
+  () => ({ id: 'P2', scope: 'app', checks: [
+    (r) => ({ id: 'P2.1', pillar: 'P2', pass: dirs(r).some((d) => TESTDIRS.includes(d)) || dirs(r).some((f) => /(_test|_spec|\.test|\.spec)\./.test(f)), evidence: 'test files/dir', severity: 'high', difficulty: 'basic' }),
+    (r) => ({ id: 'P2.2', pillar: 'P2', pass: /"test"\s*[:=]|jest|vitest|pytest|cypress|make test/i.test(read(r, ...PKG.filter(p=>has(r,p)).slice(0,1)) as string) || has(r, 'jest.config.ts') || has(r, 'jest.config.js') || has(r, 'vitest.config.ts') || has(r, 'vitest.config.js') || has(r, 'pytest.ini'), evidence: 'test config', severity: 'high', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P2.3', pillar: 'P2', pass: /"test"/.test(read(r, 'package.json')) || has(r, 'Makefile') || has(r,'pytest.ini') || /\[tool.pytest|pytest|coverage/.test(read(r,'pyproject.toml')), evidence: 'run-test one-liner', severity: 'high', difficulty: 'intermediate' }),
+    (r) => { const pkg = read(r, 'package.json'); const py = read(r, 'pyproject.toml') + read(r, 'tox.ini') + read(r, '.coveragerc'); const zeroThreshold = /coverage\s*[:=]\s*0\b/.test(pkg) || /fail_under\s*=\s*0\b/.test(py); if (zeroThreshold) return { id: 'P2.4', pillar: 'P2', pass: false, evidence: 'coverage threshold is 0 (decorative)', severity: 'med', difficulty: 'advanced' }; const configured = /coverage\s*[:=]\s*[1-9]/.test(pkg) || /--coverage/.test(pkg) || has(r,'.nycrc') || has(r,'.nycrc.json') || has(r,'.coveragerc') || has(r,'coveragerc') || /\[tool\.coverage|fail_under\s*=\s*[1-9]/.test(py); return { id: 'P2.4', pillar: 'P2', pass: configured, evidence: configured ? 'coverage threshold configured' : 'no coverage config', severity: 'med', difficulty: 'advanced' }; },
+    (r) => ({ id: 'P2.5', pillar: 'P2', pass: dirs(r).some((d)=>['fixtures','testdata','__fixtures__'].includes(d)) , evidence: 'fixtures', severity: 'low', difficulty: 'basic' }),
+    (r) => { const pkg = read(r, 'package.json'); const makefile = read(r, 'Makefile'); const pyproject = read(r, 'pyproject.toml'); const hasFastScript = /"(test:fast|test:smoke|test-fast|test-smoke)"\s*[:=]/.test(pkg); const hasMakeFast = /^test-(fast|smoke):/m.test(makefile); const vitestCfg = has(r,'vitest.config.ts') ? read(r,'vitest.config.ts') : has(r,'vitest.config.js') ? read(r,'vitest.config.js') : ''; const hasVitestIgnore = /testPathIgnorePatterns|exclude/i.test(vitestCfg); const jestCfg = has(r,'jest.config.ts') ? read(r,'jest.config.ts') : has(r,'jest.config.js') ? read(r,'jest.config.js') : ''; const hasJestIgnore = /testPathIgnorePatterns/i.test(jestCfg); const fast = hasFastScript || hasMakeFast || hasVitestIgnore || hasJestIgnore; const hasRunner = has(r,'vitest.config.ts') || has(r,'vitest.config.js') || has(r,'jest.config.ts') || has(r,'jest.config.js'); return { id: 'P2.6', pillar: 'P2', pass: fast || /\^|<test>|--runInBand|--watch/i.test(pkg) || hasRunner, evidence: fast ? 'fast/smoke test path found' : 'test runner present', severity: 'med', difficulty: 'intermediate' }; },
   ]}),
-  () => ({ id: 'P3', checks: [
-    (r) => ({ id: 'P3.1', pillar: 'P3', pass: LOCK.some((l)=>has(r,l)), evidence: 'lockfile', severity: 'high' }),
-    (r) => ({ id: 'P3.2', pillar: 'P3', pass: /"build"\s*[:=]/.test(read(r,'package.json')) || /build/i.test(read(r,'Makefile')) || has(r,'Dockerfile'), evidence: 'build step', severity: 'high' }),
-    (r) => ({ id: 'P3.3', pillar: 'P3', pass: /"(build|start)"\s*[:=]/.test(read(r,'package.json')) || has(r,'Makefile') || /\[project\.scripts|\[tool\.hatch|console_scripts|entry.?points/.test(read(r,'pyproject.toml')), evidence: 'root scripts', severity: 'med' }),
-    (r) => ({ id: 'P3.4', pillar: 'P3', pass: PKG.some((p)=>has(r,p)), evidence: 'dependency manifest', severity: 'high' }),
-    (r) => ({ id: 'P3.6', pillar: 'P3', pass: /devDependencies|dev\s*=|requirements-dev|group\s*dev/i.test(read(r,'package.json')) || /^dev/i.test(read(r,'requirements.txt')) || has(r,'requirements-dev.txt') || /\[tool\.poetry\.group\.dev|dev\s*=\s*\[/.test(read(r,'pyproject.toml')), evidence: 'dev/prod split', severity: 'low' }),
+  () => ({ id: 'P3', scope: 'app', checks: [
+    (r) => ({ id: 'P3.1', pillar: 'P3', pass: LOCK.some((l)=>has(r,l)), evidence: 'lockfile', severity: 'high', difficulty: 'basic' }),
+    (r) => ({ id: 'P3.2', pillar: 'P3', pass: /"build"\s*[:=]/.test(read(r,'package.json')) || /build/i.test(read(r,'Makefile')) || has(r,'Dockerfile'), evidence: 'build step', severity: 'high', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P3.3', pillar: 'P3', pass: /"(build|start)"\s*[:=]/.test(read(r,'package.json')) || has(r,'Makefile') || /\[project\.scripts|\[tool\.hatch|console_scripts|entry.?points/.test(read(r,'pyproject.toml')), evidence: 'root scripts', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P3.4', pillar: 'P3', pass: PKG.some((p)=>has(r,p)), evidence: 'dependency manifest', severity: 'high', difficulty: 'basic' }),
+    (r) => ({ id: 'P3.6', pillar: 'P3', pass: /devDependencies|dev\s*=|requirements-dev|group\s*dev/i.test(read(r,'package.json')) || /^dev/i.test(read(r,'requirements.txt')) || has(r,'requirements-dev.txt') || /\[tool\.poetry\.group\.dev|dev\s*=\s*\[/.test(read(r,'pyproject.toml')), evidence: 'dev/prod split', severity: 'low', difficulty: 'intermediate' }),
   ]}),
-  () => ({ id: 'P4', checks: [
-    (r) => ({ id: 'P4.1', pillar: 'P4', pass: has(r,'.github','workflows') || has(r,'.gitlab-ci.yml') || has(r,'.circleci') || has(r,'Jenkinsfile'), evidence: 'CI workflow', severity: 'high' }),
-    (r) => ({ id: 'P4.2', pillar: 'P4', pass: (()=>{ const wf=read(r,'.github','workflows','ci.yml')+read(r,'.github','workflows','main.yml'); return /test|build|lint/i.test(wf)||has(r,'.github','workflows'); })(), evidence: 'CI build+test', severity: 'med' }),
-    (r) => ({ id: 'P4.3', pillar: 'P4', pass: has(r,'.pre-commit-config.yaml') || has(r,'.husky') || has(r,'.githooks') ||/husky|lint-staged/.test(read(r,'package.json'))||has(r,'lint-staged.config'), evidence: 'pre-commit hooks', severity: 'med' }),
-    (r) => ({ id: 'P4.4', pillar: 'P4', pass: has(r,'CODEOWNERS','.github') || has(r,'CODEOWNERS'), evidence: 'ownership/rulesets', severity: 'med' }),
-    (r) => ({ id: 'P4.5', pillar: 'P4', pass: /dependabot|renovate/i.test(read(r,'.github','dependabot.yml')) || has(r,'.github','dependabot.yml'), evidence: 'dep checker', severity: 'med' }),
+  () => ({ id: 'P4', scope: 'repo', checks: [
+    (r) => ({ id: 'P4.1', pillar: 'P4', pass: has(r,'.github','workflows') || has(r,'.gitlab-ci.yml') || has(r,'.circleci') || has(r,'Jenkinsfile'), evidence: 'CI workflow', severity: 'high', difficulty: 'basic' }),
+    (r) => { const wf = scanWorkflowForTestInvocation(r); return { id: 'P4.2', pillar: 'P4', pass: wf.hasTest, evidence: wf.evidence, severity: 'med', difficulty: 'advanced' }; },
+    (r) => ({ id: 'P4.3', pillar: 'P4', pass: has(r,'.pre-commit-config.yaml') || has(r,'.husky') || has(r,'.githooks') ||/husky|lint-staged/.test(read(r,'package.json'))||has(r,'lint-staged.config'), evidence: 'pre-commit hooks', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P4.4', pillar: 'P4', pass: has(r,'CODEOWNERS','.github') || has(r,'CODEOWNERS'), evidence: 'ownership/rulesets', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P4.5', pillar: 'P4', pass: /dependabot|renovate/i.test(read(r,'.github','dependabot.yml')) || has(r,'.github','dependabot.yml'), evidence: 'dep checker', severity: 'med', difficulty: 'intermediate' }),
   ]}),
-  () => ({ id: 'P5', checks: [
-    (r) => ({ id: 'P5.1', pillar: 'P5', pass: ['.eslintrc','.eslintrc.json','.eslintrc.js','biome.json','.flake8','.ruff.toml','golangci.yml','.golangci.yml','clippy.toml'].some(f=>has(r,f)) || /eslint|biome|ruff|golangci/i.test(read(r,'package.json')), evidence: 'linter', severity: 'high' }),
-    (r) => ({ id: 'P5.2', pillar: 'P5', pass: has(r,'.prettierrc')||has(r,'.prettierrc.json')||has(r,'.prettierrc.js')||has(r,'pyproject.toml')||has(r,'.editorconfig')||/prettier|black|gofmt|dprint/i.test(read(r,'package.json')), evidence: 'formatter', severity: 'med' }),
-    (r) => ({ id: 'P5.3', pillar: 'P5', pass: has(r,'tsconfig.json')||/mypy|pyright|typecheck/i.test(read(r+''))||has(r,'golangci.yml'), evidence: 'type check', severity: 'med' }),
-    (r) => ({ id: 'P5.4', pillar: 'P5', pass: (()=>{ const big=dirs(r).filter(d=>{ try{return fs.statSync(path.join(r.root,d)).isFile()&&fs.statSync(path.join(r.root,d)).size>500000;}catch{return false;} }).length; return big===0; })(), evidence: 'no mega-files', severity: 'low' }),
-    (r) => ({ id: 'P5.5', pillar: 'P5', pass: has(r,'tsconfig.json')||has(r,'.editorconfig'), evidence: 'consistent config', severity: 'low' }),
+  () => ({ id: 'P5', scope: 'app', checks: [
+    (r) => ({ id: 'P5.1', pillar: 'P5', pass: ['.eslintrc','.eslintrc.json','.eslintrc.js','biome.json','.flake8','.ruff.toml','golangci.yml','.golangci.yml','clippy.toml'].some(f=>has(r,f)) || /eslint|biome|ruff|golangci/i.test(read(r,'package.json')), evidence: 'linter', severity: 'high', difficulty: 'basic' }),
+    (r) => ({ id: 'P5.2', pillar: 'P5', pass: has(r,'.prettierrc')||has(r,'.prettierrc.json')||has(r,'.prettierrc.js')||has(r,'pyproject.toml')||has(r,'.editorconfig')||/prettier|black|gofmt|dprint/i.test(read(r,'package.json')), evidence: 'formatter', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P5.3', pillar: 'P5', pass: has(r,'tsconfig.json')||/mypy|pyright|typecheck/i.test(read(r,'pyproject.toml')+read(r,'setup.cfg'))||has(r,'go.mod')||has(r,'Cargo.toml'), evidence: 'type check config', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P5.4', pillar: 'P5', pass: (()=>{ const big=dirs(r).filter(d=>{ try{return fs.statSync(path.join(r.root,d)).isFile()&&fs.statSync(path.join(r.root,d)).size>500000;}catch{return false;} }).length; return big===0; })(), evidence: 'no mega-files', severity: 'low', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P5.5', pillar: 'P5', pass: has(r,'tsconfig.json')||has(r,'.editorconfig'), evidence: 'consistent config', severity: 'low', difficulty: 'basic' }),
   ]}),
-  () => ({ id: 'P6', checks: [
-    (r) => ({ id: 'P6.1', pillar: 'P6', pass: /env|pem|node_modules|dist|agent-readiness/i.test(read(r,'.gitignore')) && sizeOf(r,'.gitignore')>20, evidence: 'gitignore covers secrets', severity: 'high' }),
-    (r) => ({ id: 'P6.2', pillar: 'P6', pass: !/BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}/.test(read(r,'.gitignore')+Object.values(require_dummy(r)).join('')), evidence: 'no committed secrets (sampled)', severity: 'high' }),
-    (r) => ({ id: 'P6.3', pillar: 'P6', pass: !has(r,'.env') && !has(r,'.env.prod'), evidence: 'no tracked .env', severity: 'high' }),
-    (r) => ({ id: 'P6.4', pillar: 'P6', pass: /npm audit|pip-audit|govulncheck|cargo audit|safety|trivy/i.test(read(r,'package.json')+read(r,'Makefile')+read(r,'.github','workflows','ci.yml')) || has(r,'.github','dependabot.yml'), evidence: 'vuln scan wired', severity: 'med' }),
-    (r) => ({ id: 'P6.5', pillar: 'P6', pass: /[A-Za-z_]*TOKEN|SECRET|_KEY\s*[:=]|getenv|process\.env/i.test(read(r,'.env.example')) || has(r,'.env.example'), evidence: 'credential pattern', severity: 'low' }),
+  () => ({ id: 'P6', scope: 'repo', checks: [
+    (r) => { const gi = read(r, '.gitignore'); const patterns = gitignorePatternCount(gi); return { id: 'P6.1', pillar: 'P6', pass: /env|pem|node_modules|dist|agent-readiness/i.test(gi) && patterns >= 3, evidence: `.gitignore ${patterns} patterns`, severity: 'high', difficulty: 'intermediate' }; },
+    (r) => { const scan = scanTrackedSecrets(r); return { id: 'P6.2', pillar: 'P6', pass: !scan.hit, evidence: scan.evidence, severity: 'high', difficulty: 'advanced' }; },
+    (r) => ({ id: 'P6.3', pillar: 'P6', pass: (()=>{ const tracked=gitTracked(r); if(tracked.length) return !tracked.some((f)=>/^\.env(\.(prod|local|development|staging))?$/i.test(f)); return !has(r,'.env') && !has(r,'.env.prod'); })(), evidence: 'no tracked .env (git-aware)', severity: 'high', difficulty: 'advanced' }),
+    (r) => { const hasGitleaks = toolOnPath('gitleaks'); const hasTrufflehog = toolOnPath('trufflehog'); if (hasGitleaks || hasTrufflehog) { const tool = hasGitleaks ? 'gitleaks' : 'trufflehog'; try { const res = spawnSync(tool, hasGitleaks ? ['detect', '--no-banner'] : ['filesystem', '--no-verify'], { cwd: r.root, encoding: 'utf8', timeout: 15000 }); const clean = res.status === 0; return { id: 'P6.4', pillar: 'P6', pass: clean, evidence: `${tool} scan ${clean ? 'clean' : 'found findings'}`, severity: 'med', difficulty: 'advanced' }; } catch { /* fall through */ } } const auditRe = /npm audit|pip-audit|govulncheck|cargo audit|safety|trivy/i; const wired = auditRe.test(read(r,'package.json')+read(r,'Makefile')+read(r,'.github','workflows','ci.yml')) || has(r,'.github','dependabot.yml'); return { id: 'P6.4', pillar: 'P6', pass: wired, evidence: wired ? 'vuln scan wired' : 'no vuln scan', severity: 'med', difficulty: 'advanced' }; },
+    (r) => ({ id: 'P6.5', pillar: 'P6', pass: /[A-Za-z_]*TOKEN|SECRET|_KEY\s*[:=]|getenv|process\.env/i.test(read(r,'.env.example')) || has(r,'.env.example'), evidence: 'credential pattern', severity: 'low', difficulty: 'basic' }),
   ]}),
-  () => ({ id: 'P7', checks: [
-    (r) => ({ id: 'P7.1', pillar: 'P7', pass: has(r,'src','logging')||has(r,'src','logger')||/winston|pino|structlog|logging/i.test(read(r,'package.json')+read(r,'requirements.txt')), evidence: 'structured logging', severity: 'med' }),
-    (r) => ({ id: 'P7.2', pillar: 'P7', pass: !/except\s*:\s*pass|catch\s*\([^)]*\)\s*\{\s*\}/.test(read(r,'src','app.js')+read(r,'src','main.py')), evidence: 'no silent errors', severity: 'med' }),
-    (r) => ({ id: 'P7.3', pillar: 'P7', pass: /NODE_ENV|TEST|--dry-run|--mock|test\s*mode/i.test(read(r,'package.json')+read(r,'README.md')) || has(r,'.env.example'), evidence: 'mock/dev path', severity: 'med' }),
-    (r) => ({ id: 'P7.4', pillar: 'P7', pass: /LOG_LEVEL|verbosity/i.test(read(r,'.env.example')+read(r,'config')), evidence: 'log level config', severity: 'low' }),
+  () => ({ id: 'P7', scope: 'app', checks: [
+    (r) => ({ id: 'P7.1', pillar: 'P7', pass: has(r,'src','logging')||has(r,'src','logger')||/winston|pino|structlog|logging/i.test(read(r,'package.json')+read(r,'requirements.txt')), evidence: 'structured logging', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P7.2', pillar: 'P7', pass: !/except\s*:\s*pass|catch\s*\([^)]*\)\s*\{\s*\}/.test(read(r,'src','app.js')+read(r,'src','main.py')), evidence: 'no silent errors', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P7.3', pillar: 'P7', pass: /NODE_ENV|TEST|--dry-run|--mock|test\s*mode/i.test(read(r,'package.json')+read(r,'README.md')) || has(r,'.env.example'), evidence: 'mock/dev path', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P7.4', pillar: 'P7', pass: /LOG_LEVEL|verbosity/i.test(read(r,'.env.example')+read(r,'config')), evidence: 'log level config', severity: 'low', difficulty: 'intermediate' }),
   ]}),
-  () => ({ id: 'P8', checks: [
-    (r) => ({ id: 'P8.1', pillar: 'P8', pass: has(r,'.env.example') || has(r,'.env.sample'), evidence: '.env.example', severity: 'high' }),
-    (r) => ({ id: 'P8.2', pillar: 'P8', pass: /"start"\s*[:=]|make\s+(setup|install)|script[^\\n]*setup/i.test(read(r,'package.json')+read(r,'Makefile')) || has(r,'scripts','setup'), evidence: 'one-command setup', severity: 'high' }),
-    (r) => ({ id: 'P8.3', pillar: 'P8', pass: has(r,'.devcontainer','devcontainer.json') || has(r,'Dockerfile') || has(r,'docker-compose.yml'), evidence: 'devcontainer/docker', severity: 'med' }),
-    (r) => ({ id: 'P8.4', pillar: 'P8', pass: has(r,'.nvmrc')||has(r,'.tool-versions')||/engines/.test(read(r,'package.json'))||has(r,'pyproject.toml'), evidence: 'pinned version', severity: 'med' }),
-    (r) => ({ id: 'P8.5', pillar: 'P8', pass: /"test"\s*[:=]|headless|--no-sandbox|renderless/i.test(read(r,'package.json')+read(r,'README.md')) || has(r,'pytest.ini'), evidence: 'non-GUI run', severity: 'low' }),
+  () => ({ id: 'P8', scope: 'repo', checks: [
+    (r) => ({ id: 'P8.1', pillar: 'P8', pass: has(r,'.env.example') || has(r,'.env.sample'), evidence: '.env.example', severity: 'high', difficulty: 'basic' }),
+    (r) => ({ id: 'P8.2', pillar: 'P8', pass: /"start"\s*[:=]|make\s+(setup|install)|script[^\\n]*setup/i.test(read(r,'package.json')+read(r,'Makefile')) || has(r,'scripts','setup'), evidence: 'one-command setup', severity: 'high', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P8.3', pillar: 'P8', pass: has(r,'.devcontainer','devcontainer.json') || has(r,'Dockerfile') || has(r,'docker-compose.yml'), evidence: 'devcontainer/docker', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P8.4', pillar: 'P8', pass: has(r,'.nvmrc')||has(r,'.tool-versions')||/engines/.test(read(r,'package.json'))||has(r,'pyproject.toml'), evidence: 'pinned version', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P8.5', pillar: 'P8', pass: /"test"\s*[:=]|headless|--no-sandbox|renderless/i.test(read(r,'package.json')+read(r,'README.md')) || has(r,'pytest.ini'), evidence: 'non-GUI run', severity: 'low', difficulty: 'intermediate' }),
   ]}),
-  () => ({ id: 'P9', checks: [
-    (r) => ({ id: 'P9.1', pillar: 'P9', pass: /"main"\s*[:=]|"bin"|__main__|def main|func main/i.test(read(r,'package.json')+read(r,'main.go')) || has(r,'bin') || has(r,'src','main'), evidence: 'entry points', severity: 'med' }),
-    (r) => ({ id: 'P9.2', pillar: 'P9', pass: (()=>{ const top=dirs(r).filter(d=>!d.startsWith('.')); return top.length>=2 && top.length<=30; })(), evidence: 'legible repo shape', severity: 'med' }),
-    (r) => ({ id: 'P9.3', pillar: 'P9', pass: has(r,'src')||has(r,'lib')||has(r,'packages')||has(r,'internal'), evidence: 'module boundaries', severity: 'med' }),
-    (r) => ({ id: 'P9.4', pillar: 'P9', pass: has(r,'src','README.md')||has(r,'lib','README.md')||has(r,'packages'), evidence: 'per-module docs', severity: 'low' }),
+  () => ({ id: 'P9', scope: 'app', checks: [
+    (r) => ({ id: 'P9.1', pillar: 'P9', pass: /"main"\s*[:=]|"bin"|__main__|def main|func main/i.test(read(r,'package.json')+read(r,'main.go')) || has(r,'bin') || has(r,'src','main'), evidence: 'entry points', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P9.2', pillar: 'P9', pass: (()=>{ const top=dirs(r).filter(d=>!d.startsWith('.')); return top.length>=2 && top.length<=30; })(), evidence: 'legible repo shape', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P9.3', pillar: 'P9', pass: has(r,'src')||has(r,'lib')||has(r,'packages')||has(r,'internal'), evidence: 'module boundaries', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P9.4', pillar: 'P9', pass: has(r,'src','README.md')||has(r,'lib','README.md')||has(r,'packages'), evidence: 'per-module docs', severity: 'low', difficulty: 'basic' }),
   ]}),
 ];
 
-// tiny helper (avoid top-level import collision)
-function require_dummy(_r: Repo) { return {}; }
+// Difficulty map: fallback for checks that don't stamp difficulty inline.
+// basic = file-existence, intermediate = content-regex, advanced = git-aware/external-tool/anti-gaming.
+export const DIFFICULTY: Record<string, Difficulty> = {};
 
 // expose check registry
 let REGISTRY: Pillar[] | null = null;
