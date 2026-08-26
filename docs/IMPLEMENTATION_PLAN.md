@@ -178,7 +178,9 @@
 - [x] Part B: Runtime verification layer — new `src/runtime-checks.ts`. `--verify` flag runs actual commands (`npm test -- --listTests`, `tsc --noEmit`, `npm run lint`, `npm run build`) to verify configs work, not just exist. Downgrades passing checks to failing when runtime verification fails. Language-aware (TS/JS, Python, Go, Rust). Handles missing commands/timeouts gracefully. New P2.12 (unit_tests_runnable) deterministic check. Agent-only 4→3. Pi-mapped 80→81 (96%).
 - [x] Part C: Droid-compatible flat pass rate — `droidPassRate` field in ReadinessReport and report.md. Calculated as (non-skipped passing mapped criteria) / (total non-skipped mapped criteria). Enables direct score comparison with Droid's model.
 - [x] Rubric bumped to 0.9.0. New test/runtime-checks.test.ts (31 assertions). Updated all affected tests. 9 test suites, 254 total assertions.
-- Verify: all 9 test suites pass; run 3-way side-by-side harness to measure agreement improvement.
+- [x] Runtime verification expanded: P4.1 (CI workflow YAML validation), P4.3 (pre-commit hooks run), P6.4 (vuln scan: npm audit/gitleaks/pip-audit/govulncheck/cargo audit), P5.8 (dead code: knip/vulture). Language-aware for TS/JS, Python, Go, Rust.
+- [x] --droid-scoring flag: uses Droid's flat pass rate for level calculation (L1-L5 = 0-20% → 80-100%). resolveLevelDroid() function. droidScoring boolean in report. Shows scoring model in report.md.
+- Verify: all 9 test suites pass (283 total assertions).
 
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).

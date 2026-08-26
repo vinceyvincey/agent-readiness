@@ -1,4 +1,4 @@
-import { resolveLevel, GATE_PCT, LEVEL_GATES, MANDATORY, runReadiness, writeReport } from '../src/engine.ts';
+import { resolveLevel, resolveLevelDroid, GATE_PCT, LEVEL_GATES, MANDATORY, runReadiness, writeReport } from '../src/engine.ts';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -15,6 +15,17 @@ eq('P6 85 mandatory ok -> L5', resolveLevel(mk({P6:85})), 'L5');
 eq('P0 79 -> L0', resolveLevel(mk({P0:79})), 'L0');
 eq('GATE_PCT 0.8', GATE_PCT, 0.8);
 
+// M16: Droid-compatible flat pass rate level resolution
+eq('droid L0 at 0%', resolveLevelDroid(0), 'L0');
+eq('droid L1 at 10%', resolveLevelDroid(10), 'L1');
+eq('droid L1 at 19.9%', resolveLevelDroid(19.9), 'L1');
+eq('droid L2 at 20%', resolveLevelDroid(20), 'L2');
+eq('droid L3 at 40%', resolveLevelDroid(40), 'L3');
+eq('droid L4 at 60%', resolveLevelDroid(60), 'L4');
+eq('droid L4 at 79.9%', resolveLevelDroid(79.9), 'L4');
+eq('droid L5 at 80%', resolveLevelDroid(80), 'L5');
+eq('droid L5 at 100%', resolveLevelDroid(100), 'L5');
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(),'ar-'));
 const rep = runReadiness('.');
 const dir = writeReport(rep.repo.path, rep, tmp);
@@ -27,6 +38,8 @@ eq('report.json level', j.level, rep.level);
 eq('report.json rubric_version', j.rubric_version, '0.9.0');
 eq('report.json has droidPassRate', typeof j.droidPassRate, 'number');
 eq('report.json droidPassRate > 0', j.droidPassRate > 0, true);
+eq('report.json droidScoring is boolean', typeof j.droidScoring, 'boolean');
+eq('report.json droidScoring false by default', j.droidScoring, false);
 eq('report.json run.commitHash non-empty (git repo)', j.run.commitHash.length > 0, true);
 eq('report.json run.branch non-empty (git repo)', j.run.branch.length > 0, true);
 

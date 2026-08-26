@@ -37,6 +37,17 @@ export function resolveLevel(pillars: Record<string, PillarScore>): string {
   return 'L0';
 }
 
+// M16: Droid-compatible flat pass rate level resolution.
+// L1: 0-20%, L2: 20-40%, L3: 40-60%, L4: 60-80%, L5: 80-100%.
+export function resolveLevelDroid(passRate: number): string {
+  if (passRate >= 80) return 'L5';
+  if (passRate >= 60) return 'L4';
+  if (passRate >= 40) return 'L3';
+  if (passRate >= 20) return 'L2';
+  if (passRate > 0) return 'L1';
+  return 'L0';
+}
+
 export interface PillarScore { passed: number; total: number; pct: number; perApp?: Record<string, { passed: number; total: number }>; }
 export interface PunchItem { pillar: string; id: string; severity: string; difficulty: Difficulty; action: string; evidence: string; }
 export interface ReadinessReport {
@@ -48,6 +59,7 @@ export interface ReadinessReport {
   weights: Record<string, number>;
   overall: number;
   droidPassRate: number;  // M16: flat pass rate compatible with Droid's scoring model
+  droidScoring: boolean;  // M16: true if level was calculated using Droid's flat pass rate model
   level: string;
   judgment: string[];
   punchlist: PunchItem[];
@@ -100,7 +112,7 @@ function scorePillar(checks: CheckResult[]): PillarScore {
   return { passed, total, pct: Math.round((passed / total) * 1000) / 10 };
 }
 
-export function runReadiness(root: string, opts: { weights?: Record<string, number>; model?: string; strict?: boolean; verify?: boolean } = {}): ReadinessReport {
+export function runReadiness(root: string, opts: { weights?: Record<string, number>; model?: string; strict?: boolean; verify?: boolean; droidScoring?: boolean } = {}): ReadinessReport {
   const apps = discoverApps(root);
   const pillars: Record<string, PillarScore> = {};
   const findings: CheckResult[] = [];
@@ -170,8 +182,8 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
     ? Math.round((nonSkippedMapped.filter(f => f.pass).length / nonSkippedMapped.length) * 1000) / 10
     : 0;
 
-  // Level resolution via N-1 gating across the level's required pillars.
-  const level = resolveLevel(pillars);
+  // Level resolution: N-1 gating (default) or Droid flat pass rate (--droid-scoring).
+  const level = opts.droidScoring ? resolveLevelDroid(droidPassRate) : resolveLevel(pillars);
 
   const actionById: Record<string, string> = {
     'P0.1': 'Write a real README with substantive content (>200 chars, >=2 content lines). Include a project overview, setup, usage, and verification sections.',
@@ -277,6 +289,7 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
     weights,
     overall: Math.round(overall * 1000) / 10,
     droidPassRate,
+    droidScoring: !!opts.droidScoring,
     level,
     judgment: [], // filled by the skill/extension narrative pass; excluded from score.
     punchlist,
@@ -296,7 +309,8 @@ export function renderMarkdown(report: ReadinessReport): string {
   const appList = Object.keys(report.apps).length > 1
     ? `\n\n## Applications discovered\n${Object.entries(report.apps).map(([p, a]) => `- \`${p}\` — ${a.name} (${a.type})${a.description ? ': ' + a.description : ''}`).join('\n')}`
     : '';
-  return `# Agent Readiness Report\n\n- Level: **${report.level}**\n- Overall: **${report.overall}/100** (weighted, N-1 gated)\n- Droid-compatible pass rate: **${report.droidPassRate}%** (flat, all signals weighted equally)\n- rubric_version: ${report.rubric_version} · config_hash: ${report.config_hash}\n- repo: ${report.repo.path} (${report.repo.language})${commit}\n\n## Pillars\n| Pillar | Passed/Total | Pct (per-app) |\n|---|---|---|\n${rows}\n\n## Top Punchlist (severity → difficulty)\n${punch}${appList}\n\n_Run ${report.run.date} · model ${report.run.model} · strict=${report.run.strict}_\n`;
+  const scoringModel = report.droidScoring ? 'flat pass rate (Droid-compatible)' : 'weighted, N-1 gated';
+  return `# Agent Readiness Report\n\n- Level: **${report.level}**\n- Overall: **${report.overall}/100** (${scoringModel})\n- Droid-compatible pass rate: **${report.droidPassRate}%** (flat, all signals weighted equally)\n- rubric_version: ${report.rubric_version} · config_hash: ${report.config_hash}\n- repo: ${report.repo.path} (${report.repo.language})${commit}\n\n## Pillars\n| Pillar | Passed/Total | Pct (per-app) |\n|---|---|---|\n${rows}\n\n## Top Punchlist (severity → difficulty)\n${punch}${appList}\n\n_Run ${report.run.date} · model ${report.run.model} · strict=${report.run.strict}_\n`;
 }
 
 export function writeReport(root: string, report: ReadinessReport, targetDir?: string): string {

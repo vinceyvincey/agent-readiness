@@ -43,6 +43,11 @@ export function getRuntimeVerifications(
   // Helper to check if node_modules exists (deps installed)
   const nodeModulesExists = fs.existsSync(path.join(root, 'node_modules'));
 
+  // Helper: read a file's content
+  const readFile = (rel: string) => { try { return fs.readFileSync(path.join(root, rel), 'utf8'); } catch { return ''; } };
+  // Helper: check if a tool is on PATH
+  const toolOnPath = (name: string) => { try { const r = spawnSync(name, ['--version'], { encoding: 'utf8', timeout: 3000 }); return r.status === 0 || (r.stderr && r.stderr.length > 0); } catch { return false; } };
+
   if (lang === 'typescript' || lang === 'javascript') {
     // P2.2: Test runner — verify tests are collectable
     if (passingIds.has('P2.2') && scripts.test) {
@@ -51,7 +56,6 @@ export function getRuntimeVerifications(
       } else if (deps.jest) {
         verifications.push({ checkId: 'P2.2', description: 'Verify jest can list tests', command: ['npx', 'jest', '--listTests'], timeoutMs: 30000 });
       } else if (scripts.test) {
-        // Generic test command — run with --listTests if possible, else just check exit
         verifications.push({ checkId: 'P2.2', description: 'Verify test runner works', command: ['npm', 'test', '--', '--listTests'], timeoutMs: 30000 });
       }
     }
@@ -86,6 +90,55 @@ export function getRuntimeVerifications(
         verifications.push({ checkId: 'P2.12', description: 'Verify tests are runnable (jest)', command: ['npx', 'jest', '--listTests'], timeoutMs: 30000 });
       }
     }
+
+    // P4.1: CI workflow — validate YAML structure (has jobs: with runs-on: and run: steps)
+    if (passingIds.has('P4.1') && fs.existsSync(path.join(root, '.github', 'workflows'))) {
+      const wfDir = path.join(root, '.github', 'workflows');
+      const wfFiles = fs.readdirSync(wfDir).filter(f => /\.ya?ml$/i.test(f));
+      if (wfFiles.length > 0) {
+        // Use node -e to validate basic YAML structure (no external dep needed)
+        const checkScript = `
+          const fs = require('fs');
+          const dir = ${JSON.stringify(wfDir)};
+          const files = fs.readdirSync(dir).filter(f => /\\.ya?ml$/i.test(f));
+          let valid = false;
+          for (const f of files) {
+            const content = fs.readFileSync(dir + '/' + f, 'utf8');
+            // Check for required workflow structure
+            if (/^jobs:/m.test(content) && /runs-on:/m.test(content) && /run:/m.test(content)) {
+              valid = true; break;
+            }
+          }
+          process.exit(valid ? 0 : 1);
+        `;
+        verifications.push({ checkId: 'P4.1', description: 'Validate CI workflow YAML structure', command: ['node', '-e', checkScript], timeoutMs: 10000 });
+      }
+    }
+
+    // P4.3: Pre-commit hooks — verify hooks actually run
+    if (passingIds.has('P4.3')) {
+      if (fs.existsSync(path.join(root, '.pre-commit-config.yaml')) && toolOnPath('pre-commit')) {
+        verifications.push({ checkId: 'P4.3', description: 'Verify pre-commit hooks run', command: ['pre-commit', 'run', '--all-files', '--show-diff-on-failure'], timeoutMs: 60000 });
+      } else if (deps['lint-staged'] && nodeModulesExists) {
+        // For husky+lint-staged: run lint-staged in dry mode
+        verifications.push({ checkId: 'P4.3', description: 'Verify lint-staged runs', command: ['npx', 'lint-staged', '--debug'], timeoutMs: 30000 });
+      }
+    }
+
+    // P6.4: Vulnerability scan — verify scan actually runs
+    if (passingIds.has('P6.4') && hasPkg) {
+      if (toolOnPath('gitleaks')) {
+        verifications.push({ checkId: 'P6.4', description: 'Verify gitleaks scan runs', command: ['gitleaks', 'detect', '--no-banner'], timeoutMs: 30000 });
+      } else if (nodeModulesExists) {
+        // npm audit --dry-run doesn't modify anything
+        verifications.push({ checkId: 'P6.4', description: 'Verify npm audit runs', command: ['npm', 'audit', '--dry-run'], timeoutMs: 30000 });
+      }
+    }
+
+    // P5.8: Dead code detection — verify tool runs
+    if (passingIds.has('P5.8') && deps.knip && nodeModulesExists) {
+      verifications.push({ checkId: 'P5.8', description: 'Verify knip runs', command: ['npx', 'knip', '--no-exit-code'], timeoutMs: 30000 });
+    }
   } else if (lang === 'python') {
     const pyproject = path.join(root, 'pyproject.toml');
     const requirements = path.join(root, 'requirements.txt');
@@ -115,6 +168,41 @@ export function getRuntimeVerifications(
     if (passingIds.has('P2.12')) {
       verifications.push({ checkId: 'P2.12', description: 'Verify tests are runnable (pytest)', command: ['pytest', '--collect-only'], timeoutMs: 30000 });
     }
+
+    // P4.1: CI workflow — validate YAML structure
+    if (passingIds.has('P4.1') && fs.existsSync(path.join(root, '.github', 'workflows'))) {
+      const wfDir = path.join(root, '.github', 'workflows');
+      const wfFiles = fs.readdirSync(wfDir).filter(f => /\.ya?ml$/i.test(f));
+      if (wfFiles.length > 0) {
+        const checkScript = `
+          const fs = require('fs');
+          const dir = ${JSON.stringify(wfDir)};
+          const files = fs.readdirSync(dir).filter(f => /\\.ya?ml$/i.test(f));
+          let valid = false;
+          for (const f of files) {
+            const content = fs.readFileSync(dir + '/' + f, 'utf8');
+            if (/^jobs:/m.test(content) && /runs-on:/m.test(content) && /run:/m.test(content)) { valid = true; break; }
+          }
+          process.exit(valid ? 0 : 1);
+        `;
+        verifications.push({ checkId: 'P4.1', description: 'Validate CI workflow YAML structure', command: ['node', '-e', checkScript], timeoutMs: 10000 });
+      }
+    }
+
+    // P4.3: Pre-commit hooks
+    if (passingIds.has('P4.3') && fs.existsSync(path.join(root, '.pre-commit-config.yaml')) && toolOnPath('pre-commit')) {
+      verifications.push({ checkId: 'P4.3', description: 'Verify pre-commit hooks run', command: ['pre-commit', 'run', '--all-files', '--show-diff-on-failure'], timeoutMs: 60000 });
+    }
+
+    // P6.4: Vulnerability scan — pip-audit
+    if (passingIds.has('P6.4') && toolOnPath('pip-audit')) {
+      verifications.push({ checkId: 'P6.4', description: 'Verify pip-audit runs', command: ['pip-audit', '--dry-run'], timeoutMs: 30000 });
+    }
+
+    // P5.8: Dead code detection — vulture
+    if (passingIds.has('P5.8') && toolOnPath('vulture')) {
+      verifications.push({ checkId: 'P5.8', description: 'Verify vulture runs', command: ['vulture', '.'], timeoutMs: 30000 });
+    }
   } else if (lang === 'go') {
     if (passingIds.has('P2.2') || passingIds.has('P2.12')) {
       const cmd = ['go', 'test', '-list', '.*', './...'];
@@ -124,6 +212,19 @@ export function getRuntimeVerifications(
     if (passingIds.has('P5.3')) {
       verifications.push({ checkId: 'P5.3', description: 'Verify go vet runs', command: ['go', 'vet', './...'], timeoutMs: 30000 });
     }
+    // P4.1: CI workflow — validate YAML structure
+    if (passingIds.has('P4.1') && fs.existsSync(path.join(root, '.github', 'workflows'))) {
+      const wfDir = path.join(root, '.github', 'workflows');
+      const wfFiles = fs.readdirSync(wfDir).filter(f => /\.ya?ml$/i.test(f));
+      if (wfFiles.length > 0) {
+        const checkScript = `const fs=require('fs');const dir=${JSON.stringify(wfDir)};const files=fs.readdirSync(dir).filter(f=>/\\.ya?ml$/i.test(f));let v=false;for(const f of files){const c=fs.readFileSync(dir+'/'+f,'utf8');if(/^jobs:/m.test(c)&&/runs-on:/m.test(c)&&/run:/m.test(c)){v=true;break;}}process.exit(v?0:1);`;
+        verifications.push({ checkId: 'P4.1', description: 'Validate CI workflow YAML structure', command: ['node', '-e', checkScript], timeoutMs: 10000 });
+      }
+    }
+    // P6.4: Vulnerability scan — govulncheck
+    if (passingIds.has('P6.4') && toolOnPath('govulncheck')) {
+      verifications.push({ checkId: 'P6.4', description: 'Verify govulncheck runs', command: ['govulncheck', './...'], timeoutMs: 30000 });
+    }
   } else if (lang === 'rust') {
     if (passingIds.has('P2.2') || passingIds.has('P2.12')) {
       const cmd = ['cargo', 'test', '--no-run'];
@@ -132,6 +233,19 @@ export function getRuntimeVerifications(
     }
     if (passingIds.has('P5.3')) {
       verifications.push({ checkId: 'P5.3', description: 'Verify cargo check runs', command: ['cargo', 'check'], timeoutMs: 60000 });
+    }
+    // P4.1: CI workflow — validate YAML structure
+    if (passingIds.has('P4.1') && fs.existsSync(path.join(root, '.github', 'workflows'))) {
+      const wfDir = path.join(root, '.github', 'workflows');
+      const wfFiles = fs.readdirSync(wfDir).filter(f => /\.ya?ml$/i.test(f));
+      if (wfFiles.length > 0) {
+        const checkScript = `const fs=require('fs');const dir=${JSON.stringify(wfDir)};const files=fs.readdirSync(dir).filter(f=>/\\.ya?ml$/i.test(f));let v=false;for(const f of files){const c=fs.readFileSync(dir+'/'+f,'utf8');if(/^jobs:/m.test(c)&&/runs-on:/m.test(c)&&/run:/m.test(c)){v=true;break;}}process.exit(v?0:1);`;
+        verifications.push({ checkId: 'P4.1', description: 'Validate CI workflow YAML structure', command: ['node', '-e', checkScript], timeoutMs: 10000 });
+      }
+    }
+    // P6.4: Vulnerability scan — cargo audit
+    if (passingIds.has('P6.4') && toolOnPath('cargo-audit')) {
+      verifications.push({ checkId: 'P6.4', description: 'Verify cargo audit runs', command: ['cargo', 'audit'], timeoutMs: 30000 });
     }
   }
 

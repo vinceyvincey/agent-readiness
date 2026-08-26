@@ -16,8 +16,9 @@ const agent = args.includes('--agent');
 const hist = args.includes('--history');
 const badge = args.includes('--badge');
 const verify = args.includes('--verify');
+const droidScoring = args.includes('--droid-scoring');
 
-const report = runReadiness(target, { model: process.env.PI_MODEL || 'cli', strict, verify });
+const report = runReadiness(target, { model: process.env.PI_MODEL || 'cli', strict, verify, droidScoring });
 
 if (json) {
   process.stdout.write(JSON.stringify(report, null, 2) + '\n');
