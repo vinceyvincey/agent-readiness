@@ -15,10 +15,9 @@
 - Verify: DONE - explicit `--skill` load returns rubric v0.1.0 + 10 pillars; auto-discovery lists `agent-readiness` with no validation warnings; a skill-run on this repo produced P0/P2/P6 scored evidence (see BASELINE). Full 10-pillar prompt audit exceeds 120s shell ceiling, so canonical E1 is the M2 engine.
 
 ## M2 - Deterministic engine (extension core)
-
-## M2 - Deterministic engine (extension core)
-- [ ] src/engine.ts: scan target dir -> { per-file, per-pillar %, overall, level, findings }.
-- [ ] 80% N-1 gating, configurable weights.
-- [ ] report.md + report.json output.
+- [x] src/engine.ts + checks.ts: deterministic D-check batteries for P0..P9; per-pillar %, overall, level, findings.
+- [x] 80% N-1 gating (pure resolveLevel) with Mandatory P2/P6 hard gates, configurable weights, config_hash.
+- [x] report.md + report.json output via writeReport; JSON + markdown + --strict CLI (src/cli.ts).
+- Verify: 11/11 unit tests pass (incl. level gating edge cases + writeReport); --json valid with 10 pillars + stable config hash; --strict exits 1 on mandatory gate fail; engine on this repo = L0/20.5 (correct for docs-only repo with P2/P6 failing). Extension command/tool surface (readiness_check, /readiness-report) is wired but surface verification is M3.
 
 [43 more lines in file. Use offset=23 to continue.]
