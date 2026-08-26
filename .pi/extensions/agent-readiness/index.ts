@@ -2,19 +2,22 @@
 import { Type } from '@earendil-works/pi-ai';
 import { defineTool, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 
-// Engine lives at repo-root /src in dev, or bundled next to the extension in a package.
+// Engine + fix modules live at repo-root /src in dev, or bundled next to the extension in a package.
 // Try both so the extension works in-repo AND when installed as a pi package.
-async function loadEngine() {
+async function loadModule(name: string): Promise<any> {
   const here = new URL('.', import.meta.url).pathname; // .../.pi/extensions/agent-readiness/
   const candidates = [
-    here + '../../../src/engine.ts',   // in-repo dev layout
-    here + 'engine.ts',                // bundled package layout
+    here + `../../../src/${name}.ts`,   // in-repo dev layout
+    here + `${name}.ts`,                // bundled package layout
   ];
   for (const c of candidates) {
     try { return await import(c); } catch { /* try next */ }
   }
-  throw new Error('agent-readiness engine not found (tried ' + candidates.join(', ') + ')');
+  throw new Error(`agent-readiness ${name} not found (tried ${candidates.join(', ')})`);
 }
+
+async function loadEngine() { return loadModule('engine'); }
+async function loadFix() { return loadModule('fix'); }
 
 // Parse flags from command args string (e.g. "/readiness-report --verify --droid-scoring ./repo").
 // Returns { target, flags } where target is the non-flag argument and flags is a Set of flag names.
@@ -61,11 +64,12 @@ export default function (pi: ExtensionAPI) {
       const { target: rawTarget, flags } = parseArgs(args);
       const target = rawTarget || ctx.cwd;
       const engine = await loadEngine();
+      const fix = await loadFix();
       const report = engine.runReadiness(target, {
         model: ctx.model?.id || 'pi',
         verify: flags.has('verify'),
       });
-      const prompt = engine.agentPromptFor(report);
+      const prompt = fix.agentPromptFor(report);
       ctx.ui.notify(
         `Readiness-fix: ${report.punchlist.length} failing checks${flags.has('verify') ? ' (runtime-verified)' : ''}. Delegating to agent session.`,
         'info',
@@ -84,6 +88,7 @@ export default function (pi: ExtensionAPI) {
       const { target: rawTarget, flags } = parseArgs(args);
       const target = rawTarget || ctx.cwd;
       const engine = await loadEngine();
+      const fix = await loadFix();
 
       // --verify is default on for /readiness-full (can be disabled with --no-verify)
       const useVerify = !flags.has('no-verify');
@@ -98,7 +103,7 @@ export default function (pi: ExtensionAPI) {
       const dir = engine.writeReport(target, report);
 
       // Build the combined assessment + remediation prompt.
-      const prompt = engine.fullHybridPromptFor(report);
+      const prompt = fix.fullHybridPromptFor(report);
 
       const failedCount = report.findings.filter((c) => !c.pass && !c.skipped).length;
       const skippedCount = report.findings.filter((c) => c.skipped).length;
