@@ -1,0 +1,11 @@
+{
+  "name": "agent-readiness",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+    }
+  },
+  "postCreateCommand": "npm ci",
+  "onCreateCommand": "npm ci"
+}

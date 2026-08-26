@@ -14,8 +14,8 @@ export const RUBRIC_VERSION = '0.9.0';
 
 // Level gate map: each entry is the set of pillars that must each pass the 80% gate.
 export const LEVEL_GATES: Record<string, string[]> = {
-  L1: ['P0', 'P2', 'P3'],                 // functional: runs, linter+unit tests
-  L2: ['P0', 'P1', 'P2', 'P3'],           // documented: + agent guidance
+  L1: ['P0', 'P2', 'P3'], // functional: runs, linter+unit tests
+  L2: ['P0', 'P1', 'P2', 'P3'], // documented: + agent guidance
   L3: ['P0', 'P1', 'P2', 'P3', 'P4', 'P6'], // standardized: CI + security (hard)
   L4: ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'], // optimized: + quality/observability
   L5: ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9'], // autonomous
@@ -49,8 +49,20 @@ export function resolveLevelDroid(passRate: number): string {
   return 'L0';
 }
 
-export interface PillarScore { passed: number; total: number; pct: number; perApp?: Record<string, { passed: number; total: number }>; }
-export interface PunchItem { pillar: string; id: string; severity: string; difficulty: Difficulty; action: string; evidence: string; }
+export interface PillarScore {
+  passed: number;
+  total: number;
+  pct: number;
+  perApp?: Record<string, { passed: number; total: number }>;
+}
+export interface PunchItem {
+  pillar: string;
+  id: string;
+  severity: string;
+  difficulty: Difficulty;
+  action: string;
+  evidence: string;
+}
 export interface ReadinessReport {
   rubric_version: string;
   config_hash: string;
@@ -59,29 +71,48 @@ export interface ReadinessReport {
   pillars: Record<string, PillarScore>;
   weights: Record<string, number>;
   overall: number;
-  droidPassRate: number;  // M16: flat pass rate compatible with Droid's scoring model
-  droidScoring: boolean;  // M16: true if level was calculated using Droid's flat pass rate model
+  droidPassRate: number; // M16: flat pass rate compatible with Droid's scoring model
+  droidScoring: boolean; // M16: true if level was calculated using Droid's flat pass rate model
   level: string;
   judgment: string[];
   punchlist: PunchItem[];
-  run: { date: string; model: string; strict: boolean; commitHash: string; branch: string; hasLocalChanges: boolean; hasNonRemoteCommits: boolean };
+  run: {
+    date: string;
+    model: string;
+    strict: boolean;
+    commitHash: string;
+    branch: string;
+    hasLocalChanges: boolean;
+    hasNonRemoteCommits: boolean;
+  };
   findings: CheckResult[];
 }
 
 function configHash(root: string): string {
   const cfg = path.join(root, 'agent-readiness.config.json');
   let payload = 'default';
-  try { payload = fs.readFileSync(cfg, 'utf8'); } catch { /* default */ }
+  try {
+    payload = fs.readFileSync(cfg, 'utf8');
+  } catch {
+    /* default */
+  }
   return createHash('sha256').update(payload).digest('hex').slice(0, 12);
 }
 
 // Git commit/branch/dirty-state provenance for the report (best-effort, empty if not git).
-function gitProvenance(root: string): { commitHash: string; branch: string; hasLocalChanges: boolean; hasNonRemoteCommits: boolean } {
+function gitProvenance(root: string): {
+  commitHash: string;
+  branch: string;
+  hasLocalChanges: boolean;
+  hasNonRemoteCommits: boolean;
+} {
   const git = (args: string[]): string => {
     try {
       const res = spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 5000 });
       return res.status === 0 ? (res.stdout || '').trim() : '';
-    } catch { return ''; }
+    } catch {
+      return '';
+    }
   };
   const commitHash = git(['rev-parse', 'HEAD']);
   const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
@@ -98,7 +129,8 @@ function gitProvenance(root: string): { commitHash: string; branch: string; hasL
 
 export function detectLanguage(root: string): string {
   for (const f of ['package.json', 'tsconfig.json']) if (fs.existsSync(path.join(root, f))) return 'typescript';
-  if (fs.existsSync(path.join(root, 'pyproject.toml')) || fs.existsSync(path.join(root, 'requirements.txt'))) return 'python';
+  if (fs.existsSync(path.join(root, 'pyproject.toml')) || fs.existsSync(path.join(root, 'requirements.txt')))
+    return 'python';
   if (fs.existsSync(path.join(root, 'go.mod'))) return 'go';
   if (fs.existsSync(path.join(root, 'Cargo.toml'))) return 'rust';
   if (fs.existsSync(path.join(root, 'pom.xml')) || fs.existsSync(path.join(root, 'build.gradle'))) return 'java';
@@ -113,7 +145,16 @@ function scorePillar(checks: CheckResult[]): PillarScore {
   return { passed, total, pct: Math.round((passed / total) * 1000) / 10 };
 }
 
-export function runReadiness(root: string, opts: { weights?: Record<string, number>; model?: string; strict?: boolean; verify?: boolean; droidScoring?: boolean } = {}): ReadinessReport {
+export function runReadiness(
+  root: string,
+  opts: {
+    weights?: Record<string, number>;
+    model?: string;
+    strict?: boolean;
+    verify?: boolean;
+    droidScoring?: boolean;
+  } = {},
+): ReadinessReport {
   const apps = discoverApps(root);
   const pillars: Record<string, PillarScore> = {};
   const findings: CheckResult[] = [];
@@ -128,8 +169,20 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
         const appRoot = app.path === '.' ? root : path.join(root, app.path);
         const repo: Repo = { root: appRoot };
         const appChecks = p.checks.map((fn) => {
-          try { const c = fn(repo); c.app = app.path; return c; }
-          catch { return { id: p.id + '.x', pillar: p.id, pass: false, evidence: 'check error', severity: 'low', app: app.path } as CheckResult; }
+          try {
+            const c = fn(repo);
+            c.app = app.path;
+            return c;
+          } catch {
+            return {
+              id: p.id + '.x',
+              pillar: p.id,
+              pass: false,
+              evidence: 'check error',
+              severity: 'low',
+              app: app.path,
+            } as CheckResult;
+          }
         });
         const dt = appChecks.filter((c) => c.id && c.pass !== undefined);
         perApp[app.path] = { passed: dt.filter((c) => c.pass).length, total: dt.length || 1 };
@@ -139,8 +192,17 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
       // Repo-scoped pillar, or single-app repo: run checks once on root.
       const repo: Repo = { root };
       const repoChecks = p.checks.map((fn) => {
-        try { return fn(repo); }
-        catch { return { id: p.id + '.x', pillar: p.id, pass: false, evidence: 'check error', severity: 'low' } as CheckResult; }
+        try {
+          return fn(repo);
+        } catch {
+          return {
+            id: p.id + '.x',
+            pillar: p.id,
+            pass: false,
+            evidence: 'check error',
+            severity: 'low',
+          } as CheckResult;
+        }
       });
       allChecks.push(...repoChecks);
     }
@@ -162,7 +224,7 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
   // M16: Runtime verification pass — actually run commands to verify configs work.
   if (opts.verify) {
     const lang = detectLanguage(root);
-    const passingIds = new Set(findings.filter(f => f.pass && !f.skipped).map(f => f.id));
+    const passingIds = new Set(findings.filter((f) => f.pass && !f.skipped).map((f) => f.id));
     const verifications = getRuntimeVerifications(root, lang, passingIds);
     if (verifications.length > 0) {
       const runtimeResults = runRuntimeVerifications(root, verifications);
@@ -170,7 +232,7 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
       findings.length = 0;
       findings.push(...updatedFindings);
       for (const p of getPillars()) {
-        const pChecks = findings.filter(f => f.pillar === p.id);
+        const pChecks = findings.filter((f) => f.pillar === p.id);
         pillars[p.id] = scorePillar(pChecks);
       }
       overall = getPillars().reduce((a, p) => a + (pillars[p.id].pct / 100) * weights[p.id], 0);
@@ -178,48 +240,65 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
   }
 
   // M16: Droid-compatible flat pass rate.
-  const nonSkippedMapped = findings.filter(f => !f.skipped && getCriterionByPiId(f.id));
-  const droidPassRate = nonSkippedMapped.length > 0
-    ? Math.round((nonSkippedMapped.filter(f => f.pass).length / nonSkippedMapped.length) * 1000) / 10
-    : 0;
+  const nonSkippedMapped = findings.filter((f) => !f.skipped && getCriterionByPiId(f.id));
+  const droidPassRate =
+    nonSkippedMapped.length > 0
+      ? Math.round((nonSkippedMapped.filter((f) => f.pass).length / nonSkippedMapped.length) * 1000) / 10
+      : 0;
 
   // Level resolution: N-1 gating (default) or Droid flat pass rate (--droid-scoring).
   const level = opts.droidScoring ? resolveLevelDroid(droidPassRate) : resolveLevel(pillars);
 
   const actionById: Record<string, string> = {
-    'P0.1': 'Write a real README with substantive content (>200 chars, >=2 content lines). Include a project overview, setup, usage, and verification sections.',
-    'P0.2': 'Add a run/usage/quickstart section to README with exact commands (e.g., `npm install`, `npm start`, `npm test`).',
+    'P0.1':
+      'Write a real README with substantive content (>200 chars, >=2 content lines). Include a project overview, setup, usage, and verification sections.',
+    'P0.2':
+      'Add a run/usage/quickstart section to README with exact commands (e.g., `npm install`, `npm start`, `npm test`).',
     'P0.3': 'Add a docs/ directory or ARCHITECTURE.md describing the module structure and data flow.',
     'P0.6': 'Add an H1 title to README.',
     'P0.7': 'Update documentation (README, AGENTS.md, or CONTRIBUTING.md) within the last 180 days.',
     'P0.8': 'Add automated doc generation: configure typedoc (TS), sphinx (Py), or mkdocs.',
     'P0.9': 'Add API schema docs: create openapi.json/swagger.yaml or GraphQL schema file.',
-    'P1.1': 'Create AGENTS.md with substantive setup + behavior rules (>=2 content lines). Include install, test, lint, and build commands.',
-    'P1.2': 'Add enforceable rules (must/always/never) AND verified backtick-quoted commands (matching real scripts in package.json/Makefile) to AGENTS.md.',
+    'P1.1':
+      'Create AGENTS.md with substantive setup + behavior rules (>=2 content lines). Include install, test, lint, and build commands.',
+    'P1.2':
+      'Add enforceable rules (must/always/never) AND verified backtick-quoted commands (matching real scripts in package.json/Makefile) to AGENTS.md.',
     'P1.4': 'Add MCP config (mcp.json) or CLAUDE.md for agent context.',
     'P1.6': 'Add lifecycle hooks (.factory/hooks.json or hooks in settings).',
     'P1.7': 'Add custom droids/subagents (.factory/droids or .pi/fabric/droids).',
     'P1.8': 'Add connector integrations (.factory/connectors.json).',
-    'P2.1': 'Add a test directory and at least one real test with assertions. Install the test runner as a devDependency and verify `npm test` exits 0.',
-    'P2.2': 'Configure a test runner (jest/vitest/pytest). Install it as a devDependency, create a config file, and add a `test` script to package.json.',
+    'P2.1':
+      'Add a test directory and at least one real test with assertions. Install the test runner as a devDependency and verify `npm test` exits 0.',
+    'P2.2':
+      'Configure a test runner (jest/vitest/pytest). Install it as a devDependency, create a config file, and add a `test` script to package.json.',
     'P2.3': 'Add a run-test one-liner (`npm test` / `make test`). Verify the command actually runs and exits 0.',
-    'P2.4': 'Configure a coverage threshold > 0 (not decorative). Set `--coverage.threshold` in vitest config or `fail_under >= 50` in pyproject.toml.',
+    'P2.4':
+      'Configure a coverage threshold > 0 (not decorative). Set `--coverage.threshold` in vitest config or `fail_under >= 50` in pyproject.toml.',
     'P2.6': 'Add a fast/smoke test path (test:fast script, vitest testPathIgnorePatterns, etc.).',
     'P2.7': 'Add integration/e2e tests: install cypress or playwright and create config.',
     'P2.8': 'Configure test naming conventions: set testMatch/testRegex in vitest/jest config.',
     'P2.9': 'Configure test isolation: enable parallelization (vitest threads, pytest-xdist) or sharding.',
-    'P3.1': 'Commit a lockfile (package-lock.json / poetry.lock / go.sum) for reproducible builds. Run `npm install` or equivalent to generate it.',
-    'P3.2': 'Document/add a build step. Add a `build` script to package.json or a build target to Makefile. Verify it produces output.',
-    'P4.1': 'Add a CI workflow (.github/workflows/ci.yml) that runs on push and PR. Include checkout, install, test, and lint steps.',
-    'P4.2': 'Add a real test invocation in CI (not just echo stubs). The workflow should run `npm test` or equivalent and fail the build on test failure.',
+    'P3.1':
+      'Commit a lockfile (package-lock.json / poetry.lock / go.sum) for reproducible builds. Run `npm install` or equivalent to generate it.',
+    'P3.2':
+      'Document/add a build step. Add a `build` script to package.json or a build target to Makefile. Verify it produces output.',
+    'P4.1':
+      'Add a CI workflow (.github/workflows/ci.yml) that runs on push and PR. Include checkout, install, test, and lint steps.',
+    'P4.2':
+      'Add a real test invocation in CI (not just echo stubs). The workflow should run `npm test` or equivalent and fail the build on test failure.',
     'P4.6': 'Add issue templates (.github/ISSUE_TEMPLATE/) for bug reports and feature requests.',
     'P4.7': 'Add a PR template (.github/PULL_REQUEST_TEMPLATE.md) with a checklist for reviewers.',
     'P4.8': 'Add an issue labeling system (.github/labels.yml) with priority, type, and area labels.',
-    'P4.9': 'Add release automation: CD workflow (.github/workflows/release.yml) or semantic-release/changesets config.',
-    'P5.1': 'Configure a linter (eslint/biome/ruff/golangci). Install it as a devDependency, create a config file, add a `lint` script, and verify `npm run lint` exits 0.',
-    'P5.3': 'Configure a type checker (tsconfig.json with strict mode / mypy / go vet / cargo check). Verify it runs and exits 0.',
-    'P5.6': 'Enable strict typing: set `"strict": true` in tsconfig.json (or `strict = true` in mypy config). Verify the type checker catches violations.',
-    'P5.7': 'Add naming consistency rules: configure ESLint @typescript-eslint/naming-convention or document conventions in AGENTS.md.',
+    'P4.9':
+      'Add release automation: CD workflow (.github/workflows/release.yml) or semantic-release/changesets config.',
+    'P5.1':
+      'Configure a linter (eslint/biome/ruff/golangci). Install it as a devDependency, create a config file, add a `lint` script, and verify `npm run lint` exits 0.',
+    'P5.3':
+      'Configure a type checker (tsconfig.json with strict mode / mypy / go vet / cargo check). Verify it runs and exits 0.',
+    'P5.6':
+      'Enable strict typing: set `"strict": true` in tsconfig.json (or `strict = true` in mypy config). Verify the type checker catches violations.',
+    'P5.7':
+      'Add naming consistency rules: configure ESLint @typescript-eslint/naming-convention or document conventions in AGENTS.md.',
     'P5.8': 'Add dead code detection: install knip (TS) or vulture (Py) as devDependency and create config.',
     'P5.9': 'Add duplicate code detection: install jscpd as devDependency and create .jscpd.json config.',
     'P5.10': 'Add cyclomatic complexity analysis: configure ESLint complexity rule or radon/lizard in CI.',
@@ -234,16 +313,19 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
     'P7.8': 'Add product analytics: install Mixpanel/Amplitude/PostHog SDK and instrument key events.',
     'P7.9': 'Add runbooks: create a runbooks/ directory or document incident response procedures.',
     'P8.1': 'Add .env.example listing required env vars with placeholder values.',
-    'P8.2': 'Add a one-command setup script (e.g., `npm run setup` or `make setup`) that installs deps and prepares the environment.',
+    'P8.2':
+      'Add a one-command setup script (e.g., `npm run setup` or `make setup`) that installs deps and prepares the environment.',
     'P8.6': 'Add local services setup: create docker-compose.yml for local dependencies (Postgres, Redis, etc.).',
     // M14: new check remediation actions
     'P1.9': 'Add AGENTS.md validation: CI job or pre-commit hook that checks AGENTS.md commands work.',
     'P2.10': 'Add flaky test detection: install vitest-retry/pytest-rerunfailures or configure flaky test tracking.',
-    'P2.11': 'Add test performance tracking: configure --verbose/--durations flags or integrate test analytics platform.',
+    'P2.11':
+      'Add test performance tracking: configure --verbose/--durations flags or integrate test analytics platform.',
     'P3.7': 'Install and authenticate gh CLI: run `gh auth login` to enable gh-based checks.',
     'P3.8': 'Add monorepo tooling: configure npm/pnpm workspaces, Turborepo, Nx, or Lerna.',
     'P3.9': 'Add version drift detection: install syncpack/manypkg or configure Renovate grouping rules.',
-    'P3.10': 'Add minimum release age policy: configure Renovate minimumReleaseAge or document dependency delay policy.',
+    'P3.10':
+      'Add minimum release age policy: configure Renovate minimumReleaseAge or document dependency delay policy.',
     'P4.10': 'Add CI caching: configure turbo cache, nx cache, or buildx cache for faster CI feedback.',
     'P4.11': 'Add build performance tracking: configure build caching and export build metrics.',
     'P4.12': 'Add deployment automation: create deploy workflow or release pipeline.',
@@ -268,18 +350,33 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
     'P8.7': 'Add interactive QA documentation: document how to run and exercise the app end-to-end.',
     'P8.8': 'Add database schema files: create Prisma schema, SQLAlchemy models, or SQL migrations.',
     // M16: new check remediation actions
-    'P7.15': 'Add circuit breakers: install opossum/cockatiel (Node.js), resilience4j (Java), tenacity (Python), or configure service mesh circuit breaking.',
-    'P7.16': 'Add log scrubbing: configure pino redact, winston format filtering, or structlog processors. Add custom log sanitization middleware.',
-    'P6.10': 'Add PII handling: install Presidio/DLP tools, add data masking libraries, or document PII handling procedures in AGENTS.md.',
-    'P2.12': 'Ensure tests are runnable: verify test command exits 0 with --listTests/--collect-only. Fix any configuration or dependency issues.',
+    'P7.15':
+      'Add circuit breakers: install opossum/cockatiel (Node.js), resilience4j (Java), tenacity (Python), or configure service mesh circuit breaking.',
+    'P7.16':
+      'Add log scrubbing: configure pino redact, winston format filtering, or structlog processors. Add custom log sanitization middleware.',
+    'P6.10':
+      'Add PII handling: install Presidio/DLP tools, add data masking libraries, or document PII handling procedures in AGENTS.md.',
+    'P2.12':
+      'Ensure tests are runnable: verify test command exits 0 with --listTests/--collect-only. Fix any configuration or dependency issues.',
   };
   const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
   const punchlist: PunchItem[] = findings
     .filter((c) => !c.pass && !c.skipped)
-    .sort((a, b) => (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) || (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1))
+    .sort(
+      (a, b) =>
+        (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
+        (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1),
+    )
     .slice(0, 10)
-    .map((c) => ({ pillar: c.pillar, id: c.id, severity: c.severity, difficulty: c.difficulty || 'intermediate', action: actionById[c.id] || 'No mapped remediation', evidence: c.evidence }));
+    .map((c) => ({
+      pillar: c.pillar,
+      id: c.id,
+      severity: c.severity,
+      difficulty: c.difficulty || 'intermediate',
+      action: actionById[c.id] || 'No mapped remediation',
+      evidence: c.evidence,
+    }));
 
   return {
     rubric_version: RUBRIC_VERSION,
@@ -294,27 +391,50 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
     level,
     judgment: [], // filled by the skill/extension narrative pass; excluded from score.
     punchlist,
-    run: { date: new Date().toISOString(), model: opts.model || 'unknown', strict: !!opts.strict, ...gitProvenance(root) },
+    run: {
+      date: new Date().toISOString(),
+      model: opts.model || 'unknown',
+      strict: !!opts.strict,
+      ...gitProvenance(root),
+    },
     findings,
   };
 }
 
 export function renderMarkdown(report: ReadinessReport): string {
-  const rows = Object.keys(report.pillars).map((p) => {
-    const ps = report.pillars[p];
-    const perApp = ps.perApp ? ` (${Object.entries(ps.perApp).map(([app, v]) => `${app}:${v.passed}/${v.total}`).join(', ')})` : '';
-    return `| ${p} | ${ps.passed}/${ps.total} | ${ps.pct}%${perApp} |`;
-  }).join('\n');
-  const punch = report.punchlist.length ? report.punchlist.map((p) => `- [${p.severity}/${p.difficulty}] ${p.pillar} ${p.id}: ${p.action} (${p.evidence})`).join('\n') : '- none';
+  const rows = Object.keys(report.pillars)
+    .map((p) => {
+      const ps = report.pillars[p];
+      const perApp = ps.perApp
+        ? ` (${Object.entries(ps.perApp)
+            .map(([app, v]) => `${app}:${v.passed}/${v.total}`)
+            .join(', ')})`
+        : '';
+      return `| ${p} | ${ps.passed}/${ps.total} | ${ps.pct}%${perApp} |`;
+    })
+    .join('\n');
+  const punch = report.punchlist.length
+    ? report.punchlist
+        .map((p) => `- [${p.severity}/${p.difficulty}] ${p.pillar} ${p.id}: ${p.action} (${p.evidence})`)
+        .join('\n')
+    : '- none';
   const commit = report.run.commitHash ? ` · commit ${report.run.commitHash.slice(0, 8)} (${report.run.branch})` : '';
-  const appList = Object.keys(report.apps).length > 1
-    ? `\n\n## Applications discovered\n${Object.entries(report.apps).map(([p, a]) => `- \`${p}\` — ${a.name} (${a.type})${a.description ? ': ' + a.description : ''}`).join('\n')}`
-    : '';
+  const appList =
+    Object.keys(report.apps).length > 1
+      ? `\n\n## Applications discovered\n${Object.entries(report.apps)
+          .map(([p, a]) => `- \`${p}\` — ${a.name} (${a.type})${a.description ? ': ' + a.description : ''}`)
+          .join('\n')}`
+      : '';
   const scoringModel = report.droidScoring ? 'flat pass rate (Droid-compatible)' : 'weighted, N-1 gated';
   return `# Agent Readiness Report\n\n- Level: **${report.level}**\n- Overall: **${report.overall}/100** (${scoringModel})\n- Droid-compatible pass rate: **${report.droidPassRate}%** (flat, all signals weighted equally)\n- rubric_version: ${report.rubric_version} · config_hash: ${report.config_hash}\n- repo: ${report.repo.path} (${report.repo.language})${commit}\n\n## Pillars\n| Pillar | Passed/Total | Pct (per-app) |\n|---|---|---|\n${rows}\n\n## Top Punchlist (severity → difficulty)\n${punch}${appList}\n\n_Run ${report.run.date} · model ${report.run.model} · strict=${report.run.strict}_\n`;
 }
 
-export function writeReport(root: string, report: ReadinessReport, targetDir?: string, opts: { html?: boolean } = {}): string {
+export function writeReport(
+  root: string,
+  report: ReadinessReport,
+  targetDir?: string,
+  opts: { html?: boolean } = {},
+): string {
   const dir = targetDir || path.join(root, '.agent-readiness');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify(report, null, 2));
@@ -322,9 +442,17 @@ export function writeReport(root: string, report: ReadinessReport, targetDir?: s
   if (opts.html !== false) {
     // Visual HTML report: read history BEFORE appending so the delta section
     // compares against the previous run. Best-effort — never breaks other artifacts.
-    try { fs.writeFileSync(path.join(dir, 'report.html'), renderHtml(report, { history: readHistory(root, dir) })); } catch { /* html is best-effort */ }
+    try {
+      fs.writeFileSync(path.join(dir, 'report.html'), renderHtml(report, { history: readHistory(root, dir) }));
+    } catch {
+      /* html is best-effort */
+    }
   }
-  try { appendHistory(report, root, dir); } catch { /* history is best-effort */ }
+  try {
+    appendHistory(report, root, dir);
+  } catch {
+    /* history is best-effort */
+  }
   return dir;
 }
 

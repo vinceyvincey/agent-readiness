@@ -18,8 +18,10 @@ import type { ReadinessReport } from '../src/engine.ts';
 let failures = 0;
 const eq = (label: string, got: any, want: any) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) { failures++; console.log('FAIL', label, 'got', JSON.stringify(got), 'want', JSON.stringify(want)); }
-  else console.log('ok', label);
+  if (!ok) {
+    failures++;
+    console.log('FAIL', label, 'got', JSON.stringify(got), 'want', JSON.stringify(want));
+  } else console.log('ok', label);
 };
 
 // ---- Droid output parser ----
@@ -88,8 +90,16 @@ Level 1
 const combinedParsed = parseDroidOutput(combinedOutput);
 eq('combined output splits 6 signals', combinedParsed.signals.length, 6); // 3 + 2 skipped + 1 skipped
 eq('combined output first is feature_flag_infrastructure', combinedParsed.signals[0].id, 'feature_flag_infrastructure');
-eq('combined output all 3 failed', combinedParsed.signals.slice(0, 3).every(s => !s.passed), true);
-eq('combined output last 2 skipped', combinedParsed.signals.slice(3, 5).every(s => s.skipped), true);
+eq(
+  'combined output all 3 failed',
+  combinedParsed.signals.slice(0, 3).every((s) => !s.passed),
+  true,
+);
+eq(
+  'combined output last 2 skipped',
+  combinedParsed.signals.slice(3, 5).every((s) => s.skipped),
+  true,
+);
 eq('combined output null skip detected', combinedParsed.signals[3].skipped, true);
 eq('combined output skipped detected', combinedParsed.signals[4].skipped, true);
 
@@ -108,11 +118,32 @@ const mockPiFindings: CheckResult[] = [
 const mockDroidSignals: DroidSignal[] = [
   { id: 'readme', name: 'README.md exists', passed: true, score: '1/1', rationale: 'found', skipped: false },
   { id: 'agents_md', name: 'AGENTS.md exists', passed: false, score: '0/1', rationale: 'not found', skipped: false },
-  { id: 'service_flow_documented', name: 'Service architecture', passed: false, score: '0/1', rationale: 'not found', skipped: false },
+  {
+    id: 'service_flow_documented',
+    name: 'Service architecture',
+    passed: false,
+    score: '0/1',
+    rationale: 'not found',
+    skipped: false,
+  },
   { id: 'lint_config', name: 'Linter configured', passed: true, score: '1/1', rationale: 'ESLint', skipped: false },
   { id: 'type_check', name: 'Type checker', passed: false, score: '0/1', rationale: 'no tsconfig', skipped: false },
-  { id: 'unit_tests_exist', name: 'Unit tests present', passed: false, score: '0/1', rationale: 'no tests', skipped: false },
-  { id: 'circuit_breakers', name: 'Circuit breakers', passed: false, score: '0/1', rationale: 'no circuit breakers', skipped: false }, // agent-only (code-analysis)
+  {
+    id: 'unit_tests_exist',
+    name: 'Unit tests present',
+    passed: false,
+    score: '0/1',
+    rationale: 'no tests',
+    skipped: false,
+  },
+  {
+    id: 'circuit_breakers',
+    name: 'Circuit breakers',
+    passed: false,
+    score: '0/1',
+    rationale: 'no circuit breakers',
+    skipped: false,
+  }, // agent-only (code-analysis)
 ];
 
 const comparisons = compareCriteria(mockPiFindings, mockDroidSignals);
@@ -151,7 +182,7 @@ eq('compareCriteria pi-strict', strictComparisons[0].agreement, 'pi-strict');
 // ---- Summary aggregation ----
 
 const summary = summarizeComparison(comparisons);
-eq('summarize agreementRate', summary.agreementRate, Math.round((2 + 5) / 7 * 1000) / 10);
+eq('summarize agreementRate', summary.agreementRate, Math.round(((2 + 5) / 7) * 1000) / 10);
 eq('summarize agreePass', summary.agreePass, 2);
 eq('summarize agreeFail', summary.agreeFail, 5); // agents_md, arch, type_check, tests, circuit_breakers = 5 fails both
 eq('summarize piLenient', summary.piLenient, 0);
@@ -163,20 +194,20 @@ eq('summarize agentOnly', summary.agentOnly, 0); // M16: circuit_breakers now ma
 // Simulate ceiling findings: agent fixed P1.1 (AGENTS.md) and P5.3 (tsconfig)
 const ceilingFindings: CheckResult[] = [
   { id: 'P0.1', pillar: 'P0', pass: true, evidence: 'README found', severity: 'high' },
-  { id: 'P1.1', pillar: 'P1', pass: true, evidence: 'Agent created AGENTS.md', severity: 'high' },  // fixed
+  { id: 'P1.1', pillar: 'P1', pass: true, evidence: 'Agent created AGENTS.md', severity: 'high' }, // fixed
   { id: 'P0.3', pillar: 'P0', pass: false, evidence: 'No architecture docs', severity: 'med' },
   { id: 'P5.1', pillar: 'P5', pass: true, evidence: 'ESLint found', severity: 'high' },
-  { id: 'P5.5', pillar: 'P5', pass: true, evidence: 'Agent created tsconfig.json', severity: 'high' },  // fixed (was P5.3 fail)
-  { id: 'P5.3', pillar: 'P5', pass: true, evidence: 'Agent created tsconfig.json', severity: 'high' },  // fixed
+  { id: 'P5.5', pillar: 'P5', pass: true, evidence: 'Agent created tsconfig.json', severity: 'high' }, // fixed (was P5.3 fail)
+  { id: 'P5.3', pillar: 'P5', pass: true, evidence: 'Agent created tsconfig.json', severity: 'high' }, // fixed
   { id: 'P2.1', pillar: 'P2', pass: false, evidence: 'No tests', severity: 'high' },
 ];
 
 const hybridComparisons = compareHybridCriteria(ceilingFindings, mockDroidSignals);
 // P1.1 (agents_md): hybrid now PASS, droid FAIL → was agree-fail, now pi-lenient
-const hybridAgentsMd = hybridComparisons.find(c => c.droidId === 'agents_md');
+const hybridAgentsMd = hybridComparisons.find((c) => c.droidId === 'agents_md');
 eq('hybrid agents_md is pi-lenient after fix', hybridAgentsMd?.agreement, 'pi-lenient');
 // P5.3 (type_check): hybrid now PASS, droid FAIL → pi-lenient
-const hybridTypeCheck = hybridComparisons.find(c => c.droidId === 'type_check');
+const hybridTypeCheck = hybridComparisons.find((c) => c.droidId === 'type_check');
 eq('hybrid type_check is pi-lenient after fix', hybridTypeCheck?.agreement, 'pi-lenient');
 
 const hybridSummary = summarizeComparison(hybridComparisons);
@@ -212,7 +243,17 @@ const mockReport: SideBySideReport = {
   repo: 'test-repo',
   pi: { level: 'L1', overall: 30, findings: mockPiFindings, punchlist: [], agentPrompt: 'test', durationMs: 50 },
   piHybrid: mockHybrid,
-  droid: { level: 2, passRate: 24.2, passedSignals: 15, totalSignals: 62, skippedSignals: 1, signals: mockDroidSignals, actionItems: ['Add AGENTS.md'], rawOutput: '', durationMs: 120000 },
+  droid: {
+    level: 2,
+    passRate: 24.2,
+    passedSignals: 15,
+    totalSignals: 62,
+    skippedSignals: 1,
+    signals: mockDroidSignals,
+    actionItems: ['Add AGENTS.md'],
+    rawOutput: '',
+    durationMs: 120000,
+  },
   comparisons,
   hybridComparisons,
   fixes: null,

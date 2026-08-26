@@ -2,15 +2,52 @@
   "name": "agent-readiness",
   "version": "0.1.0",
   "description": "pi-native framework to measure and improve how ready a codebase is for autonomous AI coding agents (skill + extension + deterministic engine).",
-  "keywords": ["pi-package", "agent-readiness", "ai", "code-quality", "mcp"],
+  "keywords": [
+    "pi-package",
+    "agent-readiness",
+    "ai",
+    "code-quality",
+    "mcp"
+  ],
   "license": "MIT",
   "type": "module",
   "pi": {
-    "extensions": [".pi/extensions"],
-    "skills": ["skills"]
+    "extensions": [
+      ".pi/extensions"
+    ],
+    "skills": [
+      "skills"
+    ]
+  },
+  "main": "./src/cli.ts",
+  "bin": {
+    "agent-readiness": "./src/cli.ts"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types scripts/run-tests.ts",
+    "lint": "eslint src test scripts validation --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "tsc -p tsconfig.json",
+    "setup": "npm install",
+    "test:report": "node --experimental-strip-types scripts/run-tests.ts --reporter junit",
+    "test:coverage": "nyc node --experimental-strip-types scripts/run-tests.ts",
+    "techdebt": "node --experimental-strip-types scripts/todo-scan.ts",
+    "todo-scanner": "node --experimental-strip-types scripts/todo-scan.ts"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-ai": "*"
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.68.0",
+    "@typescript-eslint/parser": "^8.68.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.4.0"
   }
 }

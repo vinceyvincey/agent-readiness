@@ -1,21 +1,53 @@
 // M12: tests for the 84-criterion registry.
-import { CRITERIA_REGISTRY, getCriterionByPiId, getCriterionByDroidId, getAgentOnlyCriteria, getPiMappedCriteria } from '../src/criteria-registry.ts';
+import {
+  CRITERIA_REGISTRY,
+  getCriterionByPiId,
+  getCriterionByDroidId,
+  getAgentOnlyCriteria,
+  getPiMappedCriteria,
+} from '../src/criteria-registry.ts';
 
 let failures = 0;
 const eq = (label: string, got: any, want: any) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) { failures++; console.log('FAIL', label, 'got', got, 'want', want); }
-  else console.log('ok', label);
+  if (!ok) {
+    failures++;
+    console.log('FAIL', label, 'got', got, 'want', want);
+  } else console.log('ok', label);
 };
 
 // Registry completeness
 eq('registry has 84 entries', CRITERIA_REGISTRY.length, 84);
-eq('all entries have droidId', CRITERIA_REGISTRY.every(c => c.droidId.length > 0), true);
-eq('all entries have name', CRITERIA_REGISTRY.every(c => c.name.length > 0), true);
-eq('all entries have description', CRITERIA_REGISTRY.every(c => c.description.length > 0), true);
-eq('all entries have evaluation', CRITERIA_REGISTRY.every(c => c.evaluation.length > 0), true);
-eq('all entries have valid scope', CRITERIA_REGISTRY.every(c => c.scope === 'repo' || c.scope === 'app'), true);
-eq('all entries have valid level', CRITERIA_REGISTRY.every(c => c.level >= 1 && c.level <= 5), true);
+eq(
+  'all entries have droidId',
+  CRITERIA_REGISTRY.every((c) => c.droidId.length > 0),
+  true,
+);
+eq(
+  'all entries have name',
+  CRITERIA_REGISTRY.every((c) => c.name.length > 0),
+  true,
+);
+eq(
+  'all entries have description',
+  CRITERIA_REGISTRY.every((c) => c.description.length > 0),
+  true,
+);
+eq(
+  'all entries have evaluation',
+  CRITERIA_REGISTRY.every((c) => c.evaluation.length > 0),
+  true,
+);
+eq(
+  'all entries have valid scope',
+  CRITERIA_REGISTRY.every((c) => c.scope === 'repo' || c.scope === 'app'),
+  true,
+);
+eq(
+  'all entries have valid level',
+  CRITERIA_REGISTRY.every((c) => c.level >= 1 && c.level <= 5),
+  true,
+);
 
 // Pi mapping
 const piMapped = getPiMappedCriteria();
@@ -23,8 +55,16 @@ const agentOnly = getAgentOnlyCriteria();
 eq('pi-mapped + agent-only = 84', piMapped.length + agentOnly.length, 84);
 eq('agent-only count is 3', agentOnly.length, 3);
 eq('pi-mapped count is 81', piMapped.length, 81);
-eq('agent-only has no piId', agentOnly.every(c => c.piId === null), true);
-eq('pi-mapped has piId', piMapped.every(c => c.piId !== null), true);
+eq(
+  'agent-only has no piId',
+  agentOnly.every((c) => c.piId === null),
+  true,
+);
+eq(
+  'pi-mapped has piId',
+  piMapped.every((c) => c.piId !== null),
+  true,
+);
 
 // Lookup functions
 eq('getCriterionByPiId P5.1 finds lint_config', getCriterionByPiId('P5.1')?.droidId, 'lint_config');
@@ -48,7 +88,7 @@ eq('pii_handling maps to P6.10', getCriterionByDroidId('pii_handling')?.piId, 'P
 eq('log_scrubbing maps to P7.16', getCriterionByDroidId('log_scrubbing')?.piId, 'P7.16');
 
 // Agent-only criteria includes known ones (4 remaining after M16)
-const agentOnlyIds = agentOnly.map(c => c.droidId);
+const agentOnlyIds = agentOnly.map((c) => c.droidId);
 eq('n_plus_one_detection is agent-only', agentOnlyIds.includes('n_plus_one_detection'), true);
 eq('interactive_qa_runnable is agent-only', agentOnlyIds.includes('interactive_qa_runnable'), true);
 eq('devcontainer_runnable is agent-only', agentOnlyIds.includes('devcontainer_runnable'), true);

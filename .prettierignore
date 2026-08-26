@@ -1,0 +1,9 @@
+node_modules
+dist
+.agent-readiness
+validation
+package-lock.json
+.skills
+skills
+docs
+*.md

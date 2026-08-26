@@ -6,25 +6,57 @@ import { LEVEL_GATES, MANDATORY, GATE_PCT } from './engine.ts';
 import { getCriterionByPiId } from './criteria-registry.ts';
 
 const LEVEL_NAMES: Record<string, string> = {
-  L0: 'Unknown', L1: 'Functional', L2: 'Documented', L3: 'Standardized', L4: 'Optimized', L5: 'Autonomous',
+  L0: 'Unknown',
+  L1: 'Functional',
+  L2: 'Documented',
+  L3: 'Standardized',
+  L4: 'Optimized',
+  L5: 'Autonomous',
 };
 
 const CHECK_NAMES: Record<string, string> = {
-  'P0.2': 'Run/usage section in README', 'P0.4': 'Changelog or version history', 'P0.5': 'Examples directory',
-  'P0.6': 'H1 title in README', 'P1.2': 'Enforceable rules + verified commands in AGENTS.md', 'P1.3': 'Contributing docs',
-  'P1.5': 'Task shortcut for agents', 'P1.8': 'Connector integrations', 'P2.2': 'Test runner configured',
-  'P2.3': 'Run-test one-liner', 'P2.5': 'Test fixtures', 'P2.6': 'Fast/smoke test path',
-  'P3.3': 'Root scripts documented', 'P3.4': 'Dependency manifest', 'P3.6': 'Dev/prod dependency split',
-  'P4.1': 'CI workflow', 'P4.2': 'CI runs real tests + lint', 'P5.4': 'No mega-files', 'P5.5': 'Consistent config files',
-  'P6.2': 'No committed secrets', 'P6.3': 'No tracked .env files', 'P7.2': 'No silent error swallowing',
-  'P7.3': 'Mock/dev observability path', 'P7.4': 'Log level configuration', 'P8.4': 'Pinned tool versions',
-  'P8.5': 'Non-GUI run path', 'P9.1': 'Clear entry points', 'P9.2': 'Legible repo shape', 'P9.4': 'Per-module docs',
+  'P0.2': 'Run/usage section in README',
+  'P0.4': 'Changelog or version history',
+  'P0.5': 'Examples directory',
+  'P0.6': 'H1 title in README',
+  'P1.2': 'Enforceable rules + verified commands in AGENTS.md',
+  'P1.3': 'Contributing docs',
+  'P1.5': 'Task shortcut for agents',
+  'P1.8': 'Connector integrations',
+  'P2.2': 'Test runner configured',
+  'P2.3': 'Run-test one-liner',
+  'P2.5': 'Test fixtures',
+  'P2.6': 'Fast/smoke test path',
+  'P3.3': 'Root scripts documented',
+  'P3.4': 'Dependency manifest',
+  'P3.6': 'Dev/prod dependency split',
+  'P4.1': 'CI workflow',
+  'P4.2': 'CI runs real tests + lint',
+  'P5.4': 'No mega-files',
+  'P5.5': 'Consistent config files',
+  'P6.2': 'No committed secrets',
+  'P6.3': 'No tracked .env files',
+  'P7.2': 'No silent error swallowing',
+  'P7.3': 'Mock/dev observability path',
+  'P7.4': 'Log level configuration',
+  'P8.4': 'Pinned tool versions',
+  'P8.5': 'Non-GUI run path',
+  'P9.1': 'Clear entry points',
+  'P9.2': 'Legible repo shape',
+  'P9.4': 'Per-module docs',
 };
 
 const PILLAR_NAMES: Record<string, string> = {
-  P0: 'Documentation', P1: 'Agent Guidance', P2: 'Testing & Verification', P3: 'Build & Dependencies',
-  P4: 'CI, Automation & Gates', P5: 'Code Quality & Style', P6: 'Security & Secrets',
-  P7: 'Observability & Debugging', P8: 'Environment & Onboarding', P9: 'Task Discovery & Modularity',
+  P0: 'Documentation',
+  P1: 'Agent Guidance',
+  P2: 'Testing & Verification',
+  P3: 'Build & Dependencies',
+  P4: 'CI, Automation & Gates',
+  P5: 'Code Quality & Style',
+  P6: 'Security & Secrets',
+  P7: 'Observability & Debugging',
+  P8: 'Environment & Onboarding',
+  P9: 'Task Discovery & Modularity',
 };
 
 const PILLAR_RATIONALE: Record<string, string> = {
@@ -40,9 +72,13 @@ const PILLAR_RATIONALE: Record<string, string> = {
   P9: 'Clear boundaries and discoverable work help agents make focused changes with fewer unintended effects.',
 };
 
-const esc = (s: unknown): string => String(s ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const esc = (s: unknown): string =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 function levelStates(pillars: Record<string, { pct: number }>): Array<{ lvl: string; unlocked: boolean; pct: number }> {
   const mandatoryOk = MANDATORY.every((m) => (pillars[m]?.pct ?? 0) >= GATE_PCT * 100);
@@ -54,19 +90,62 @@ function levelStates(pillars: Record<string, { pct: number }>): Array<{ lvl: str
 }
 
 interface FindingView {
-  id: string; pillar: string; pass: boolean; skipped: boolean; severity: string; difficulty: string;
-  evidence: string; app?: string; name: string; droidLevel: number | null; scope: string;
-  rationale: string; description: string; evaluation: string; action: string; prompt: string;
+  id: string;
+  pillar: string;
+  pass: boolean;
+  skipped: boolean;
+  severity: string;
+  difficulty: string;
+  evidence: string;
+  app?: string;
+  name: string;
+  droidLevel: number | null;
+  scope: string;
+  rationale: string;
+  description: string;
+  evaluation: string;
+  action: string;
+  prompt: string;
 }
 
 interface ReportView {
-  level: string; levelName: string; overall: number; droidPassRate: number; droidScoring: boolean;
+  level: string;
+  levelName: string;
+  overall: number;
+  droidPassRate: number;
+  droidScoring: boolean;
   repo: { path: string; language: string };
-  run: { date: string; model: string; strict: boolean; commitHash: string; branch: string; hasLocalChanges: boolean; hasNonRemoteCommits: boolean };
-  rubric_version: string; config_hash: string;
-  pillars: Record<string, { name: string; rationale: string; passed: number; total: number; pct: number; perApp?: Record<string, { passed: number; total: number }> }>;
+  run: {
+    date: string;
+    model: string;
+    strict: boolean;
+    commitHash: string;
+    branch: string;
+    hasLocalChanges: boolean;
+    hasNonRemoteCommits: boolean;
+  };
+  rubric_version: string;
+  config_hash: string;
+  pillars: Record<
+    string,
+    {
+      name: string;
+      rationale: string;
+      passed: number;
+      total: number;
+      pct: number;
+      perApp?: Record<string, { passed: number; total: number }>;
+    }
+  >;
   apps: Record<string, { name: string; type: string; description: string }>;
-  punchlist: Array<{ pillar: string; id: string; severity: string; difficulty: string; action: string; evidence: string }>;
+  punchlist: Array<{
+    pillar: string;
+    id: string;
+    severity: string;
+    difficulty: string;
+    action: string;
+    evidence: string;
+  }>;
   findings: FindingView[];
   history: Array<{ date: string; level: string; overall: number }>;
   levels: Array<{ lvl: string; unlocked: boolean; pct: number }>;
@@ -108,14 +187,27 @@ function buildView(report: ReadinessReport, history: HistoryEntry[]): ReportView
     const criterion = getCriterionByPiId(f.id);
     const punch = report.punchlist.find((p) => p.id === f.id);
     const base: Omit<FindingView, 'prompt'> = {
-      id: f.id, pillar: f.pillar, pass: !!f.pass, skipped: !!f.skipped,
-      severity: f.severity, difficulty: f.difficulty || 'intermediate', evidence: f.evidence, app: f.app,
+      id: f.id,
+      pillar: f.pillar,
+      pass: !!f.pass,
+      skipped: !!f.skipped,
+      severity: f.severity,
+      difficulty: f.difficulty || 'intermediate',
+      evidence: f.evidence,
+      app: f.app,
       name: criterion?.name || CHECK_NAMES[f.id] || f.id,
-      droidLevel: criterion?.level ?? null, scope: criterion?.scope || 'repo',
+      droidLevel: criterion?.level ?? null,
+      scope: criterion?.scope || 'repo',
       rationale: PILLAR_RATIONALE[f.pillar] || 'This criterion improves the reliability of autonomous changes.',
-      description: criterion?.description || `This check is part of ${PILLAR_NAMES[f.pillar] || f.pillar} and measures whether the repository gives an agent enough reliable evidence to work safely.`,
+      description:
+        criterion?.description ||
+        `This check is part of ${PILLAR_NAMES[f.pillar] || f.pillar} and measures whether the repository gives an agent enough reliable evidence to work safely.`,
       evaluation: criterion?.evaluation || `Pass when repository evidence satisfies ${CHECK_NAMES[f.id] || f.id}.`,
-      action: punch?.action || (f.pass ? 'No remediation is required; preserve this capability.' : `Address the missing capability reported by ${f.id}: ${f.evidence}.`),
+      action:
+        punch?.action ||
+        (f.pass
+          ? 'No remediation is required; preserve this capability.'
+          : `Address the missing capability reported by ${f.id}: ${f.evidence}.`),
     };
     return { ...base, prompt: remediationPrompt(report.repo.path, base) };
   });
@@ -123,54 +215,104 @@ function buildView(report: ReadinessReport, history: HistoryEntry[]): ReportView
   for (const [id, score] of Object.entries(report.pillars)) {
     pillars[id] = { name: PILLAR_NAMES[id] || id, rationale: PILLAR_RATIONALE[id] || '', ...score };
   }
-  const delta = prev ? {
-    overall: Math.round((report.overall - prev.overall) * 10) / 10,
-    level: prev.level === report.level ? report.level : `${prev.level} → ${report.level}`,
-    perPillar: Object.fromEntries(Object.entries(report.pillars).map(([id, score]) =>
-      [id, Math.round((score.pct - (prev.perPillar[id] ?? score.pct)) * 10) / 10])),
-  } : null;
+  const delta = prev
+    ? {
+        overall: Math.round((report.overall - prev.overall) * 10) / 10,
+        level: prev.level === report.level ? report.level : `${prev.level} → ${report.level}`,
+        perPillar: Object.fromEntries(
+          Object.entries(report.pillars).map(([id, score]) => [
+            id,
+            Math.round((score.pct - (prev.perPillar[id] ?? score.pct)) * 10) / 10,
+          ]),
+        ),
+      }
+    : null;
   return {
-    level: report.level, levelName: LEVEL_NAMES[report.level] || report.level,
-    overall: report.overall, droidPassRate: report.droidPassRate, droidScoring: report.droidScoring,
-    repo: report.repo, run: report.run, rubric_version: report.rubric_version, config_hash: report.config_hash,
-    pillars, apps: report.apps, punchlist: report.punchlist, findings,
+    level: report.level,
+    levelName: LEVEL_NAMES[report.level] || report.level,
+    overall: report.overall,
+    droidPassRate: report.droidPassRate,
+    droidScoring: report.droidScoring,
+    repo: report.repo,
+    run: report.run,
+    rubric_version: report.rubric_version,
+    config_hash: report.config_hash,
+    pillars,
+    apps: report.apps,
+    punchlist: report.punchlist,
+    findings,
     history: history.map((h) => ({ date: h.date, level: h.level, overall: h.overall })),
-    levels: levelStates(report.pillars), delta,
+    levels: levelStates(report.pillars),
+    delta,
   };
 }
 
 function radarChart(pillars: ReportView['pillars']): string {
   const entries = Object.entries(pillars);
-  const cx = 260, cy = 190, radius = 130;
+  const cx = 260,
+    cy = 190,
+    radius = 130;
   const point = (i: number, value: number) => {
-    const angle = -Math.PI / 2 + i * Math.PI * 2 / entries.length;
+    const angle = -Math.PI / 2 + (i * Math.PI * 2) / entries.length;
     return `${(cx + Math.cos(angle) * radius * value).toFixed(1)},${(cy + Math.sin(angle) * radius * value).toFixed(1)}`;
   };
-  const rings = [0.25, 0.5, 0.75, 1].map((r) =>
-    `<polygon points="${entries.map((_, i) => point(i, r)).join(' ')}" class="radar-ring"/>`).join('');
-  const axes = entries.map((_, i) => `<line x1="${cx}" y1="${cy}" x2="${point(i, 1).split(',')[0]}" y2="${point(i, 1).split(',')[1]}" class="radar-axis"/>`).join('');
+  const rings = [0.25, 0.5, 0.75, 1]
+    .map((r) => `<polygon points="${entries.map((_, i) => point(i, r)).join(' ')}" class="radar-ring"/>`)
+    .join('');
+  const axes = entries
+    .map(
+      (_, i) =>
+        `<line x1="${cx}" y1="${cy}" x2="${point(i, 1).split(',')[0]}" y2="${point(i, 1).split(',')[1]}" class="radar-axis"/>`,
+    )
+    .join('');
   const area = entries.map(([, p], i) => point(i, p.pct / 100)).join(' ');
-  const labels = entries.map(([id, p], i) => {
-    const angle = -Math.PI / 2 + i * Math.PI * 2 / entries.length;
-    const x = cx + Math.cos(angle) * (radius + 32);
-    const y = cy + Math.sin(angle) * (radius + 24);
-    const anchor = Math.cos(angle) > 0.25 ? 'start' : Math.cos(angle) < -0.25 ? 'end' : 'middle';
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="radar-label">${esc(id)} <tspan>${Math.round(p.pct)}%</tspan></text>`;
-  }).join('');
+  const labels = entries
+    .map(([id, p], i) => {
+      const angle = -Math.PI / 2 + (i * Math.PI * 2) / entries.length;
+      const x = cx + Math.cos(angle) * (radius + 32);
+      const y = cy + Math.sin(angle) * (radius + 24);
+      const anchor = Math.cos(angle) > 0.25 ? 'start' : Math.cos(angle) < -0.25 ? 'end' : 'middle';
+      return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="radar-label">${esc(id)} <tspan>${Math.round(p.pct)}%</tspan></text>`;
+    })
+    .join('');
   return `<svg class="radar-chart" viewBox="0 0 520 390" role="img" aria-label="Pass rate by readiness pillar">${rings}${axes}<polygon points="${area}" class="radar-area"/>${entries.map(([, p], i) => `<circle cx="${point(i, p.pct / 100).split(',')[0]}" cy="${point(i, p.pct / 100).split(',')[1]}" r="3.5" class="radar-point"/>`).join('')}${labels}</svg>`;
 }
 
 function trendChart(view: ReportView): string {
-  const values = [...view.history.map((h) => ({ date: h.date, value: h.overall })), { date: view.run.date, value: view.overall }];
-  const w = 760, h = 270, left = 48, right = 18, top = 18, bottom = 38;
-  const x = (i: number) => values.length === 1 ? (left + w - right) / 2 : left + i * (w - left - right) / (values.length - 1);
-  const y = (v: number) => top + (100 - v) * (h - top - bottom) / 100;
+  const values = [
+    ...view.history.map((h) => ({ date: h.date, value: h.overall })),
+    { date: view.run.date, value: view.overall },
+  ];
+  const w = 760,
+    h = 270,
+    left = 48,
+    right = 18,
+    top = 18,
+    bottom = 38;
+  const x = (i: number) =>
+    values.length === 1 ? (left + w - right) / 2 : left + (i * (w - left - right)) / (values.length - 1);
+  const y = (v: number) => top + ((100 - v) * (h - top - bottom)) / 100;
   const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v.value).toFixed(1)}`).join(' ');
-  const grid = [0, 25, 50, 75, 100].map((v) => `<line x1="${left}" y1="${y(v)}" x2="${w-right}" y2="${y(v)}" class="trend-grid"/><text x="${left-10}" y="${y(v)+4}" text-anchor="end" class="trend-label">${v}</text>`).join('');
-  const dates = values.length === 1
-    ? `<text x="${x(0)}" y="${h-10}" text-anchor="middle" class="trend-label">${esc(values[0].date.slice(0, 10))}</text>`
-    : values.map((v, i) => (i === 0 || i === values.length - 1 || values.length < 6) ? `<text x="${x(i)}" y="${h-10}" text-anchor="${i === 0 ? 'start' : i === values.length - 1 ? 'end' : 'middle'}" class="trend-label">${esc(v.date.slice(5, 10))}</text>` : '').join('');
-  const baseline = values.length === 1 ? `<line x1="${left}" y1="${y(values[0].value)}" x2="${w-right}" y2="${y(values[0].value)}" class="trend-baseline"/>` : '';
+  const grid = [0, 25, 50, 75, 100]
+    .map(
+      (v) =>
+        `<line x1="${left}" y1="${y(v)}" x2="${w - right}" y2="${y(v)}" class="trend-grid"/><text x="${left - 10}" y="${y(v) + 4}" text-anchor="end" class="trend-label">${v}</text>`,
+    )
+    .join('');
+  const dates =
+    values.length === 1
+      ? `<text x="${x(0)}" y="${h - 10}" text-anchor="middle" class="trend-label">${esc(values[0].date.slice(0, 10))}</text>`
+      : values
+          .map((v, i) =>
+            i === 0 || i === values.length - 1 || values.length < 6
+              ? `<text x="${x(i)}" y="${h - 10}" text-anchor="${i === 0 ? 'start' : i === values.length - 1 ? 'end' : 'middle'}" class="trend-label">${esc(v.date.slice(5, 10))}</text>`
+              : '',
+          )
+          .join('');
+  const baseline =
+    values.length === 1
+      ? `<line x1="${left}" y1="${y(values[0].value)}" x2="${w - right}" y2="${y(values[0].value)}" class="trend-baseline"/>`
+      : '';
   return `<svg class="trend-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Overall readiness score over time">${grid}${baseline}<polyline points="${points}" class="trend-line"/>${values.map((v, i) => `<circle cx="${x(i)}" cy="${y(v.value)}" r="5" class="trend-point"><title>${esc(v.date)}: ${v.value}</title></circle>`).join('')}${dates}</svg>`;
 }
 
@@ -226,7 +368,7 @@ dialog{width:min(760px,calc(100vw - 32px));max-height:88vh;padding:0;border:1px 
 <header class="topbar"><div class="topbar-inner"><div class="brand">agent<span class="brand-mark">/</span>readiness</div><nav class="navlinks"><a href="#overview">Overview</a><a href="#actions">Actions</a><a href="#pillars">Pillars</a><a href="#criteria">Criteria</a></nav><div class="nav-actions"><span class="level-chip" id="nav-level"></span><button class="icon-btn" id="theme" aria-label="Toggle theme" title="Toggle theme"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.2v2M10 15.8v2M2.2 10h2M15.8 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M15.5 4.5l-1.4 1.4M5.9 14.1l-1.4 1.4" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div></header>
 <main class="shell">
 <section id="overview" class="panel overview">
-  <div class="repo-row"><div class="repo-badge">${esc(report.level.replace('L','') || '0')}</div><div><div class="repo-name">${esc(repoName)}</div><div class="repo-meta">${esc(report.repo.language)} · ${esc(report.run.branch || 'local')} · updated ${esc(report.run.date.slice(0,16).replace('T',' '))}</div></div><div class="overview-actions"><button class="outline-btn" id="copy-all">Copy remediation prompt</button><button class="primary-btn" id="open-first">Review top blocker</button></div></div>
+  <div class="repo-row"><div class="repo-badge">${esc(report.level.replace('L', '') || '0')}</div><div><div class="repo-name">${esc(repoName)}</div><div class="repo-meta">${esc(report.repo.language)} · ${esc(report.run.branch || 'local')} · updated ${esc(report.run.date.slice(0, 16).replace('T', ' '))}</div></div><div class="overview-actions"><button class="outline-btn" id="copy-all">Copy remediation prompt</button><button class="primary-btn" id="open-first">Review top blocker</button></div></div>
   <div class="score-callout"><strong>${report.droidPassRate.toFixed(1)}%</strong> <span>of mapped criteria pass</span></div>
   <div class="segment-wrap"><div class="score-marker" id="score-marker">${report.droidPassRate.toFixed(1)}%</div><div class="segments" id="segments" aria-label="${report.droidPassRate.toFixed(1)} percent criteria passing"></div><div class="level-labels"><span>Level 1</span><span>Level 2</span><span>Level 3</span><span>Level 4</span><span>Level 5</span></div></div>
   <div class="summary-grid" id="summary"></div>

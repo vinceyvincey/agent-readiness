@@ -8,8 +8,10 @@ import * as path from 'node:path';
 let failures = 0;
 const eq = (label: string, got: any, want: any) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) { failures++; console.log('FAIL', label, 'got', got, 'want', want); }
-  else console.log('ok', label);
+  if (!ok) {
+    failures++;
+    console.log('FAIL', label, 'got', got, 'want', want);
+  } else console.log('ok', label);
 };
 
 function mkRepo(): string {
@@ -33,9 +35,10 @@ function write(d: string, rel: string, content: string) {
   // Verify that the top-5 sorted failing checks appear in the prompt.
   const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
-  const sorted = highFails.sort((a, b) =>
-    (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
-    (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1)
+  const sorted = highFails.sort(
+    (a, b) =>
+      (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
+      (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1),
   );
   for (const f of sorted.slice(0, 5)) {
     eq(`prompt contains ${f.id}`, prompt.includes(f.id), true);
@@ -98,7 +101,11 @@ function write(d: string, rel: string, content: string) {
   const drafts = draftsFor(r, d);
   eq('static drafts produced', drafts.length > 0, true);
   // Should include AGENTS.md draft (P1.1/P1.2 will fail)
-  eq('drafts include AGENTS.md', drafts.some((dr) => dr.file === 'AGENTS.md'), true);
+  eq(
+    'drafts include AGENTS.md',
+    drafts.some((dr) => dr.file === 'AGENTS.md'),
+    true,
+  );
 }
 
 // ---- M15: assessmentPromptFor enriched with 5-phase Droid-style methodology ----
@@ -148,8 +155,7 @@ function write(d: string, rel: string, content: string) {
   eq('assessment has devcontainer up command', prompt.includes('devcontainer up'), true);
 
   // 3 agent-only droidIds mentioned (after M16: unit_tests_runnable now deterministic)
-  const agentOnlyIds = ['devcontainer_runnable', 'n_plus_one_detection',
-    'interactive_qa_runnable'];
+  const agentOnlyIds = ['devcontainer_runnable', 'n_plus_one_detection', 'interactive_qa_runnable'];
   for (const id of agentOnlyIds) {
     eq(`assessment mentions ${id}`, prompt.includes(id), true);
   }
@@ -158,7 +164,11 @@ function write(d: string, rel: string, content: string) {
   eq('assessment does not mention circuit_breakers as agent-only', agentOnlyIds.includes('circuit_breakers'), false);
   eq('assessment does not mention pii_handling as agent-only', agentOnlyIds.includes('pii_handling'), false);
   eq('assessment does not mention log_scrubbing as agent-only', agentOnlyIds.includes('log_scrubbing'), false);
-  eq('assessment does not mention unit_tests_runnable as agent-only', agentOnlyIds.includes('unit_tests_runnable'), false);
+  eq(
+    'assessment does not mention unit_tests_runnable as agent-only',
+    agentOnlyIds.includes('unit_tests_runnable'),
+    false,
+  );
 
   // Skip condition notes for skippable criteria
   eq('assessment has skip notes', prompt.includes('[Skippable]'), true);
@@ -192,10 +202,18 @@ function write(d: string, rel: string, content: string) {
   eq('fullHybrid mentions current level', prompt.includes(r.level), true);
   eq('fullHybrid mentions current overall', prompt.includes(String(r.overall)), true);
   eq('fullHybrid mentions droidPassRate', prompt.includes(String(r.droidPassRate)), true);
-  eq('fullHybrid has agent-only section', prompt.includes('devcontainer_runnable') || prompt.includes('n_plus_one') || prompt.includes('interactive_qa'), true);
+  eq(
+    'fullHybrid has agent-only section',
+    prompt.includes('devcontainer_runnable') || prompt.includes('n_plus_one') || prompt.includes('interactive_qa'),
+    true,
+  );
   eq('fullHybrid has OUTPUT FORMAT', prompt.includes('OUTPUT FORMAT'), true);
   eq('fullHybrid has Score Delta section', prompt.includes('Score Delta'), true);
-  eq('fullHybrid has Remediation section', prompt.includes('Remediation') || prompt.includes('fix') || prompt.includes('Fix'), true);
+  eq(
+    'fullHybrid has Remediation section',
+    prompt.includes('Remediation') || prompt.includes('fix') || prompt.includes('Fix'),
+    true,
+  );
   eq('fullHybrid has assessment section', prompt.includes('CONFIRMED FAIL') || prompt.includes('FALSE POSITIVE'), true);
 }
 
@@ -219,9 +237,9 @@ function write(d: string, rel: string, content: string) {
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const r = runReadiness(d);
   const prompt = fullHybridPromptFor(r);
-  const failedIds = r.findings.filter(f => !f.pass && !f.skipped).map(f => f.id);
+  const failedIds = r.findings.filter((f) => !f.pass && !f.skipped).map((f) => f.id);
   // Should mention at least some failing check IDs
-  const mentionsFailed = failedIds.some(id => prompt.includes(id));
+  const mentionsFailed = failedIds.some((id) => prompt.includes(id));
   eq('fullHybrid mentions failing check IDs', mentionsFailed, true);
 }
 

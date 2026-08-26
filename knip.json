@@ -1,0 +1,5 @@
+{
+  "entry": ["src/cli.ts"],
+  "project": ["src/**/*.ts"],
+  "ignoreDependencies": ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai"]
+}

@@ -8,8 +8,10 @@ import * as path from 'node:path';
 let failures = 0;
 const eq = (label: string, got: any, want: any) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) { failures++; console.log('FAIL', label, 'got', got, 'want', want); }
-  else console.log('ok', label);
+  if (!ok) {
+    failures++;
+    console.log('FAIL', label, 'got', got, 'want', want);
+  } else console.log('ok', label);
 };
 
 function mkRepo(): string {
@@ -51,7 +53,11 @@ function write(d: string, rel: string, content: string) {
   write(d, 'apps/api/package.json', JSON.stringify({ name: 'api' }));
   const apps = discoverApps(d);
   eq('turbo monorepo finds 2 apps', apps.length, 2);
-  eq('apps are type app', apps.every((a) => a.type === 'app'), true);
+  eq(
+    'apps are type app',
+    apps.every((a) => a.type === 'app'),
+    true,
+  );
 }
 
 // ---- runReadiness: monorepo report has apps map ----
@@ -102,7 +108,11 @@ function write(d: string, rel: string, content: string) {
 
   const r = runReadiness(d);
   const p2Findings = r.findings.filter((f) => f.pillar === 'P2');
-  eq('P2 findings have app field', p2Findings.every((f) => f.app !== undefined), true);
+  eq(
+    'P2 findings have app field',
+    p2Findings.every((f) => f.app !== undefined),
+    true,
+  );
   const appPaths = new Set(p2Findings.map((f) => f.app));
   eq('P2 findings span 2 apps', appPaths.size, 2);
 }

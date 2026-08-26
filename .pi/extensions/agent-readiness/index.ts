@@ -7,17 +7,25 @@ import { defineTool, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
 async function loadModule(name: string): Promise<any> {
   const here = new URL('.', import.meta.url).pathname; // .../.pi/extensions/agent-readiness/
   const candidates = [
-    here + `../../../src/${name}.ts`,   // in-repo dev layout
-    here + `${name}.ts`,                // bundled package layout
+    here + `../../../src/${name}.ts`, // in-repo dev layout
+    here + `${name}.ts`, // bundled package layout
   ];
   for (const c of candidates) {
-    try { return await import(c); } catch { /* try next */ }
+    try {
+      return await import(c);
+    } catch {
+      /* try next */
+    }
   }
   throw new Error(`agent-readiness ${name} not found (tried ${candidates.join(', ')})`);
 }
 
-async function loadEngine() { return loadModule('engine'); }
-async function loadFix() { return loadModule('fix'); }
+async function loadEngine() {
+  return loadModule('engine');
+}
+async function loadFix() {
+  return loadModule('fix');
+}
 
 // Parse flags from command args string (e.g. "/readiness-report --verify --droid-scoring ./repo").
 // Returns { target, flags } where target is the non-flag argument and flags is a Set of flag names.
@@ -36,7 +44,8 @@ export default function (pi: ExtensionAPI) {
   // /readiness-report [--verify] [--droid-scoring] [--strict] [path]
   // Runs the deterministic engine, optionally with runtime verification and/or Droid scoring.
   pi.registerCommand('readiness-report', {
-    description: 'Run the agent-readiness audit and write a report (markdown + JSON + visual HTML). Flags: --verify (runtime verification), --droid-scoring (flat pass rate), --strict (CI gate).',
+    description:
+      'Run the agent-readiness audit and write a report (markdown + JSON + visual HTML). Flags: --verify (runtime verification), --droid-scoring (flat pass rate), --strict (CI gate).',
     handler: async (args: string, ctx: any) => {
       const { target: rawTarget, flags } = parseArgs(args);
       const target = rawTarget || ctx.cwd;
@@ -59,7 +68,8 @@ export default function (pi: ExtensionAPI) {
   // /readiness-fix [--verify] [path]
   // Runs the deterministic engine, then sends a grounded remediation prompt to the agent.
   pi.registerCommand('readiness-fix', {
-    description: 'Run an agent session to remediate failing readiness checks (grounded by the latest report). Flags: --verify (runtime verification first).',
+    description:
+      'Run an agent session to remediate failing readiness checks (grounded by the latest report). Flags: --verify (runtime verification first).',
     handler: async (args: string, ctx: any) => {
       const { target: rawTarget, flags } = parseArgs(args);
       const target = rawTarget || ctx.cwd;
@@ -84,7 +94,8 @@ export default function (pi: ExtensionAPI) {
   // Sends the combined prompt to pi's agent loop via sendUserMessage() so the agent
   // actually executes the 4 phases (assess, fix, validate, re-run).
   pi.registerCommand('readiness-full', {
-    description: 'Full hybrid assessment + fix: deterministic floor with runtime verification, agent assessment of findings and agent-only criteria, agent-driven remediation, and delta re-run. Flags: --verify (runtime verification, default on), --droid-scoring (flat pass rate).',
+    description:
+      'Full hybrid assessment + fix: deterministic floor with runtime verification, agent assessment of findings and agent-only criteria, agent-driven remediation, and delta re-run. Flags: --verify (runtime verification, default on), --droid-scoring (flat pass rate).',
     handler: async (args: string, ctx: any) => {
       const { target: rawTarget, flags } = parseArgs(args);
       const target = rawTarget || ctx.cwd;
@@ -124,11 +135,14 @@ export default function (pi: ExtensionAPI) {
   const readinessCheck = defineTool({
     name: 'readiness_check',
     label: 'Readiness Check',
-    description: 'Run the deterministic agent-readiness audit on a repo path and return level, overall score, per-pillar scores, and punchlist.',
+    description:
+      'Run the deterministic agent-readiness audit on a repo path and return level, overall score, per-pillar scores, and punchlist.',
     parameters: Type.Object({
       path: Type.Optional(Type.String({ description: 'Repo path to audit (defaults to cwd)' })),
       strict: Type.Optional(Type.Boolean({ description: 'Treat missing mandatory scopes as failure' })),
-      verify: Type.Optional(Type.Boolean({ description: 'Run runtime verification (actually run test/lint/build commands)' })),
+      verify: Type.Optional(
+        Type.Boolean({ description: 'Run runtime verification (actually run test/lint/build commands)' }),
+      ),
     }),
     async execute(_id, params, _sig, _up, ctx) {
       const target = params.path || ctx.cwd;

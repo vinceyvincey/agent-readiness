@@ -1,0 +1,18 @@
+- name: bug
+  description: Something isn't working
+  color: d73a4a
+- name: enhancement
+  description: New feature or improvement
+  color: a2eeef
+- name: dependencies
+  description: Dependency updates
+  color: 0366d6
+- name: internal
+  description: Engine/check internals
+  color: 7057ff
+- name: docs
+  description: Documentation
+  color: 0075ca
+- name: security
+  description: Security related
+  color: b60205

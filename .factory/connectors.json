@@ -1,0 +1,3 @@
+{
+  "connectors": [{ "name": "github", "type": "gh", "enabled": true }]
+}

@@ -1,3 +1,7 @@
 {
-  "skills": ["skills/agent-readiness"]
+  "skills": ["skills/agent-readiness"],
+  "hooks": {
+    "postEdit": ["node --experimental-strip-types scripts/setup.ts"],
+    "postCommand": ["node --experimental-strip-types src/cli.ts . --json"]
+  }
 }

@@ -6,51 +6,82 @@ import * as path from 'node:path';
 import { CRITERIA_REGISTRY, getCriterionByPiId, getAgentOnlyCriteria, type CriterionDef } from './criteria-registry.ts';
 import type { ReadinessReport } from './engine.ts';
 
-export interface FixDraft { file: string; content: string; note: string; }
+export interface FixDraft {
+  file: string;
+  content: string;
+  note: string;
+}
 
 // Map a failed check id to a concrete draft file.
 export function draftsFor(report: ReadinessReport, target: string): FixDraft[] {
   const out: FixDraft[] = [];
   const failed = new Set(report.findings.filter((c) => !c.pass).map((c) => c.id));
-  const add = (file: string, content: string, note: string) =>
-    out.push({ file, content: content.trim() + '\n', note });
+  const add = (file: string, content: string, note: string) => out.push({ file, content: content.trim() + '\n', note });
 
   // P1.1 / P1.2 -> AGENTS.md
   if (failed.has('P1.1') || failed.has('P1.2')) {
-    add('AGENTS.md', `# Agent instructions
+    add(
+      'AGENTS.md',
+      `# Agent instructions
 
 Working here, you must:
 - Always run the project's tests and linter before finishing.
 - Never commit secrets; keep .env out of git.
 - Follow the existing module structure and naming conventions.
 - Prefer small, reviewable changes over large rewrites.
-`, 'Create/replace AGENTS.md with enforceable behavior rules.');
+`,
+      'Create/replace AGENTS.md with enforceable behavior rules.',
+    );
   }
   // P2.1 / P2.2 / P2.3 -> test scaffold
   if (failed.has('P2.1') || failed.has('P2.2') || failed.has('P2.3')) {
-    add('test/fixture.test.ts', `import { describe, it, expect } from 'vitest';
+    add(
+      'test/fixture.test.ts',
+      `import { describe, it, expect } from 'vitest';
 // Replace with a real test of the project's core behavior.
-describe('core', () => { it('works', () => { expect(true).toBe(true); }); });`, 'Scaffold a test dir + a runner so a run-test one-liner exists.');
+describe('core', () => { it('works', () => { expect(true).toBe(true); }); });`,
+      'Scaffold a test dir + a runner so a run-test one-liner exists.',
+    );
   }
   // P3.1 -> lockfile note
   if (failed.has('P3.1')) {
-    add('README.md', `\n## Reproducibility\nCommit a lockfile (package-lock.json / poetry.lock / go.sum) for deterministic installs.`, 'Commit a lockfile for reproducible builds.');
+    add(
+      'README.md',
+      `\n## Reproducibility\nCommit a lockfile (package-lock.json / poetry.lock / go.sum) for deterministic installs.`,
+      'Commit a lockfile for reproducible builds.',
+    );
   }
   // P4.1 -> CI workflow
   if (failed.has('P4.1')) {
-    add('.github/workflows/ci.yml', `name: CI\non:\n  push:\n  pull_request:\n  workflow_dispatch:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo 'Add your build + test + lint steps here'`, 'Add a CI workflow that builds, tests, and lints.');
+    add(
+      '.github/workflows/ci.yml',
+      `name: CI\non:\n  push:\n  pull_request:\n  workflow_dispatch:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: echo 'Add your build + test + lint steps here'`,
+      'Add a CI workflow that builds, tests, and lints.',
+    );
   }
   // P6.1 -> gitignore hardening
   if (failed.has('P6.1')) {
-    add('.gitignore', `# Secrets\n.env\n.env.*\n*.pem\n*.key\n# Caches / build\nnode_modules/\ndist/\n.cache/\n.agent-readiness/\n*.log`, 'Harden .gitignore to cover secrets and caches.');
+    add(
+      '.gitignore',
+      `# Secrets\n.env\n.env.*\n*.pem\n*.key\n# Caches / build\nnode_modules/\ndist/\n.cache/\n.agent-readiness/\n*.log`,
+      'Harden .gitignore to cover secrets and caches.',
+    );
   }
   // P8.1 -> .env.example
   if (failed.has('P8.1')) {
-    add('.env.example', `# Required environment variables (fill real values locally, never commit)\n# DATABASE_URL=postgres://user:pass@localhost:5432/db\n# API_KEY=`, 'Add .env.example listing required env vars.');
+    add(
+      '.env.example',
+      `# Required environment variables (fill real values locally, never commit)\n# DATABASE_URL=postgres://user:pass@localhost:5432/db\n# API_KEY=`,
+      'Add .env.example listing required env vars.',
+    );
   }
   // P0.2 -> README usage note
   if (failed.has('P0.2')) {
-    add('README-usage-note.md', `Add a Usage / Quickstart section to the README describing how to run and verify this project.`, 'Add a run/usage section to README.');
+    add(
+      'README-usage-note.md',
+      `Add a Usage / Quickstart section to the README describing how to run and verify this project.`,
+      'Add a run/usage section to README.',
+    );
   }
 
   return out;
@@ -130,47 +161,62 @@ export function assessmentPromptFor(report: ReadinessReport): string {
   }
   const pillarOrder = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9'];
   const pillarNames: Record<string, string> = {
-    P0: 'Documentation', P1: 'Agent Guidance', P2: 'Testing', P3: 'Build & Dependencies',
-    P4: 'CI & Release', P5: 'Code Quality', P6: 'Security', P7: 'Observability',
-    P8: 'Environment', P9: 'Modularity',
+    P0: 'Documentation',
+    P1: 'Agent Guidance',
+    P2: 'Testing',
+    P3: 'Build & Dependencies',
+    P4: 'CI & Release',
+    P5: 'Code Quality',
+    P6: 'Security',
+    P7: 'Observability',
+    P8: 'Environment',
+    P9: 'Modularity',
   };
 
   // Build detailed verification items with FULL descriptions and evaluations (no truncation).
   const pillarSections = pillarOrder
-    .filter(p => pillars[p] && pillars[p].length > 0)
-    .map(p => {
-      const items = pillars[p].map((c) => {
-        const reg = getCriterionByPiId(c.id);
-        const desc = reg ? reg.description : '';
-        const evalInstr = reg ? reg.evaluation : '';
-        const scope = reg ? reg.scope : 'repo';
-        const skipNote = reg?.skippable ? ' [Skippable]' : '';
-        return `#### ${c.id} [${c.severity}]${skipNote}
+    .filter((p) => pillars[p] && pillars[p].length > 0)
+    .map((p) => {
+      const items = pillars[p]
+        .map((c) => {
+          const reg = getCriterionByPiId(c.id);
+          const desc = reg ? reg.description : '';
+          const evalInstr = reg ? reg.evaluation : '';
+          const scope = reg ? reg.scope : 'repo';
+          const skipNote = reg?.skippable ? ' [Skippable]' : '';
+          return `#### ${c.id} [${c.severity}]${skipNote}
 **Scope**: ${scope === 'app' ? 'per-application' : 'repository-wide'}
 **Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}
 ${desc ? `**Description**: ${desc}` : ''}
 ${evalInstr ? `**Evaluation**: ${evalInstr}` : ''}
 **Verify**: Run the actual command (e.g., \`npm test\`, \`npm run lint\`, \`tsc --noEmit\`, \`gh api ...\`) to confirm this truly fails. If it passes behaviorally, mark as false positive.`;
-      }).join('\n\n');
+        })
+        .join('\n\n');
       return `### ${p} — ${pillarNames[p]} (${pillars[p].length} failing)\n\n${items}`;
-    }).join('\n\n');
+    })
+    .join('\n\n');
 
   // Build FULL agent-only criteria with complete descriptions, evaluations, and verification commands.
-  const agentOnlySection = agentOnly.map((c) => {
-    const skipNote = c.skippable ? ' [Skippable]' : '';
-    return `### ${c.droidId} [L${c.level}/${c.scope}${skipNote}]
+  const agentOnlySection = agentOnly
+    .map((c) => {
+      const skipNote = c.skippable ? ' [Skippable]' : '';
+      return `### ${c.droidId} [L${c.level}/${c.scope}${skipNote}]
 **Description**: ${c.description}
 **Evaluation**: ${c.evaluation}
 **Verification commands**:
 ${agentOnlyVerificationCommands(c.droidId)}`;
-  }).join('\n\n');
+    })
+    .join('\n\n');
 
-  const skippedInfo = skipped.length > 0
-    ? `\n**Skipped checks** (${skipped.length}): ${skipped.map(s => s.id).join(', ')} — these require gh CLI or other prerequisites not available. Attempt them if possible.\n`
-    : '';
+  const skippedInfo =
+    skipped.length > 0
+      ? `\n**Skipped checks** (${skipped.length}): ${skipped.map((s) => s.id).join(', ')} — these require gh CLI or other prerequisites not available. Attempt them if possible.\n`
+      : '';
 
   const appInfo = isMonorepo
-    ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps).map(([p2, a]) => `${p2} (${a.name})`).join(', ')}.\n`
+    ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps)
+        .map(([p2, a]) => `${p2} (${a.name})`)
+        .join(', ')}.\n`
     : '\n';
 
   const lang = report.repo.language;
@@ -281,9 +327,10 @@ export function agentPromptFor(report: ReadinessReport): string {
   const failed = report.findings.filter((c) => !c.pass);
   const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
-  const sorted = failed.sort((a, b) =>
-    (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
-    (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1)
+  const sorted = failed.sort(
+    (a, b) =>
+      (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
+      (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1),
   );
 
   // Focus on top 5 highest-leverage fixes (Droid's insight: one fix done thoroughly > many done superficially).
@@ -292,15 +339,18 @@ export function agentPromptFor(report: ReadinessReport): string {
 
   // Build detailed, actionable items using Droid-inspired criterion descriptions.
   const actionMap: Record<string, string> = {
-    'P0.1': 'Write a real README with project overview, setup, usage, and verification sections (>200 chars, >=2 content lines).',
+    'P0.1':
+      'Write a real README with project overview, setup, usage, and verification sections (>200 chars, >=2 content lines).',
     'P0.2': 'Add a run/usage/quickstart section to README with exact commands.',
     'P0.3': 'Add a docs/ directory or ARCHITECTURE.md describing module structure.',
     'P0.6': 'Add an H1 title to README.',
-    'P0.7': 'Update documentation (README, AGENTS.md, CONTRIBUTING.md) — key docs should be modified within the last 180 days.',
+    'P0.7':
+      'Update documentation (README, AGENTS.md, CONTRIBUTING.md) — key docs should be modified within the last 180 days.',
     'P0.8': 'Add automated doc generation: configure typedoc (TS), sphinx (Py), or mkdocs.',
     'P0.9': 'Add API schema docs: create openapi.json/swagger.yaml or GraphQL schema file.',
     'P1.1': 'Create AGENTS.md with install, test, lint, and build commands plus behavior rules.',
-    'P1.2': 'Add enforceable rules (must/always/never) AND backtick-quoted commands matching real scripts to AGENTS.md.',
+    'P1.2':
+      'Add enforceable rules (must/always/never) AND backtick-quoted commands matching real scripts to AGENTS.md.',
     'P1.4': 'Add MCP config (mcp.json) or CLAUDE.md for agent context.',
     'P1.6': 'Add lifecycle hooks (.factory/hooks.json).',
     'P1.7': 'Add custom droids/subagents (.factory/droids/).',
@@ -315,8 +365,10 @@ export function agentPromptFor(report: ReadinessReport): string {
     'P2.9': 'Configure test isolation: enable parallelization (vitest threads, pytest-xdist) or sharding.',
     'P3.1': 'Commit a lockfile for reproducible builds. Run `npm install` to generate it.',
     'P3.2': 'Add a build step (`build` script in package.json or Makefile target).',
-    'P3.4': 'Add a dependency manifest (package.json / pyproject.toml / go.mod / Cargo.toml) with declared dependencies.',
-    'P3.6': 'Separate dev/prod dependencies (devDependencies in package.json, requirements-dev.txt, or poetry dev group).',
+    'P3.4':
+      'Add a dependency manifest (package.json / pyproject.toml / go.mod / Cargo.toml) with declared dependencies.',
+    'P3.6':
+      'Separate dev/prod dependencies (devDependencies in package.json, requirements-dev.txt, or poetry dev group).',
     'P4.1': 'Add a CI workflow (.github/workflows/ci.yml) with checkout, install, test, and lint steps.',
     'P4.2': 'Add a real test invocation in CI (not echo stubs). The workflow must run tests and fail on failure.',
     'P4.3': 'Add pre-commit hooks (husky + lint-staged or .pre-commit-config.yaml) to enforce lint/format on commit.',
@@ -325,12 +377,14 @@ export function agentPromptFor(report: ReadinessReport): string {
     'P4.6': 'Add issue templates (.github/ISSUE_TEMPLATE/) for bug reports and feature requests.',
     'P4.7': 'Add a PR template (.github/PULL_REQUEST_TEMPLATE.md) with a reviewer checklist.',
     'P4.8': 'Add an issue labeling system (.github/labels.yml) with priority, type, and area labels.',
-    'P4.9': 'Add release automation: CD workflow (.github/workflows/release.yml) or semantic-release/changesets config.',
+    'P4.9':
+      'Add release automation: CD workflow (.github/workflows/release.yml) or semantic-release/changesets config.',
     'P5.1': 'Configure a linter: install eslint/biome/ruff as devDependency, create config, add `lint` script.',
     'P5.2': 'Configure a formatter (Prettier / Black / gofmt). Install as devDependency and add a `format` script.',
     'P5.3': 'Configure a type checker: create tsconfig.json with strict mode, or mypy/pyright config.',
     'P5.6': 'Enable strict typing: set `"strict": true` in tsconfig.json or `strict = true` in mypy config.',
-    'P5.7': 'Add naming consistency rules: configure ESLint @typescript-eslint/naming-convention or document conventions in AGENTS.md.',
+    'P5.7':
+      'Add naming consistency rules: configure ESLint @typescript-eslint/naming-convention or document conventions in AGENTS.md.',
     'P5.8': 'Add dead code detection: install knip (TS) or vulture (Py) as devDependency and create config.',
     'P5.9': 'Add duplicate code detection: install jscpd as devDependency and create .jscpd.json config.',
     'P5.10': 'Add cyclomatic complexity analysis: configure ESLint complexity rule or radon/lizard in CI.',
@@ -379,34 +433,45 @@ export function agentPromptFor(report: ReadinessReport): string {
     'P8.7': 'Add interactive QA documentation: document how to run and exercise the app end-to-end.',
     'P8.8': 'Add database schema files: create Prisma schema, SQLAlchemy models, or SQL migrations.',
     // M16: new check remediation actions
-    'P7.15': 'Add circuit breakers: install opossum/cockatiel (Node.js), resilience4j (Java), tenacity (Python), or configure service mesh circuit breaking.',
-    'P7.16': 'Add log scrubbing: configure pino redact, winston format filtering, or structlog processors. Add custom log sanitization middleware.',
-    'P6.10': 'Add PII handling: install Presidio/DLP tools, add data masking libraries, or document PII handling procedures in AGENTS.md.',
-    'P2.12': 'Ensure tests are runnable: verify test command exits 0 with --listTests/--collect-only. Fix any configuration or dependency issues.',
+    'P7.15':
+      'Add circuit breakers: install opossum/cockatiel (Node.js), resilience4j (Java), tenacity (Python), or configure service mesh circuit breaking.',
+    'P7.16':
+      'Add log scrubbing: configure pino redact, winston format filtering, or structlog processors. Add custom log sanitization middleware.',
+    'P6.10':
+      'Add PII handling: install Presidio/DLP tools, add data masking libraries, or document PII handling procedures in AGENTS.md.',
+    'P2.12':
+      'Ensure tests are runnable: verify test command exits 0 with --listTests/--collect-only. Fix any configuration or dependency issues.',
   };
 
   // M12: Build items with full criterion descriptions from the registry (like Droid's fix prompt).
-  const items = topItems.map((c) => {
-    const action = actionMap[c.id] || `Fix ${c.id}: ${c.evidence}`;
-    const reg = getCriterionByPiId(c.id);
-    const desc = reg ? reg.description : '';
-    const evalInstr = reg ? reg.evaluation.substring(0, 300) : '';
-    return `### ${c.pillar} ${c.id} [${c.severity}/${c.difficulty || 'intermediate'}]
+  const items = topItems
+    .map((c) => {
+      const action = actionMap[c.id] || `Fix ${c.id}: ${c.evidence}`;
+      const reg = getCriterionByPiId(c.id);
+      const desc = reg ? reg.description : '';
+      const evalInstr = reg ? reg.evaluation.substring(0, 300) : '';
+      return `### ${c.pillar} ${c.id} [${c.severity}/${c.difficulty || 'intermediate'}]
 **Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}${desc ? `\n**Description**: ${desc}` : ''}${evalInstr ? `\n**Evaluation**: ${evalInstr}` : ''}
 **Fix**: ${action}`;
-  }).join('\n\n');
+    })
+    .join('\n\n');
 
   // M12: Agent-only criteria section — 36 criteria the deterministic engine can't check.
   const agentOnly = getAgentOnlyCriteria();
-  const agentOnlySection = agentOnly.map((c) => {
-    return `### ${c.droidId} [L${c.level}/${c.scope}${c.skippable ? ', skippable' : ''}]
+  const agentOnlySection = agentOnly
+    .map((c) => {
+      return `### ${c.droidId} [L${c.level}/${c.scope}${c.skippable ? ', skippable' : ''}]
 **Description**: ${c.description}
 **Evaluation**: ${c.evaluation.substring(0, 300)}`;
-  }).join('\n\n');
+    })
+    .join('\n\n');
 
-  const appInfo = Object.keys(report.apps).length > 1
-    ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps).map(([p, a]) => `${p} (${a.name})`).join(', ')}. Apply app-scoped fixes to the correct app directory.\n`
-    : '\n';
+  const appInfo =
+    Object.keys(report.apps).length > 1
+      ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps)
+          .map(([p, a]) => `${p} (${a.name})`)
+          .join(', ')}. Apply app-scoped fixes to the correct app directory.\n`
+      : '\n';
 
   const lang = report.repo.language;
   const langContext = lang !== 'unknown' ? `Language: ${lang}. ` : '';
@@ -493,83 +558,105 @@ export function fullHybridPromptFor(report: ReadinessReport): string {
   }
   const pillarOrder = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9'];
   const pillarNames: Record<string, string> = {
-    P0: 'Documentation', P1: 'Agent Guidance', P2: 'Testing', P3: 'Build & Dependencies',
-    P4: 'CI & Release', P5: 'Code Quality', P6: 'Security', P7: 'Observability',
-    P8: 'Environment', P9: 'Modularity',
+    P0: 'Documentation',
+    P1: 'Agent Guidance',
+    P2: 'Testing',
+    P3: 'Build & Dependencies',
+    P4: 'CI & Release',
+    P5: 'Code Quality',
+    P6: 'Security',
+    P7: 'Observability',
+    P8: 'Environment',
+    P9: 'Modularity',
   };
 
   // Build failing-checks summary grouped by pillar.
   const failingSummary = pillarOrder
-    .filter(p => pillars[p] && pillars[p].length > 0)
-    .map(p => {
-      const items = pillars[p].map((c) => {
-        const reg = getCriterionByPiId(c.id);
-        const desc = reg ? reg.description : '';
-        const evalInstr = reg ? reg.evaluation : '';
-        const skipNote = reg?.skippable ? ' [Skippable]' : '';
-        return `#### ${c.id} [${c.severity}]${skipNote}
+    .filter((p) => pillars[p] && pillars[p].length > 0)
+    .map((p) => {
+      const items = pillars[p]
+        .map((c) => {
+          const reg = getCriterionByPiId(c.id);
+          const desc = reg ? reg.description : '';
+          const evalInstr = reg ? reg.evaluation : '';
+          const skipNote = reg?.skippable ? ' [Skippable]' : '';
+          return `#### ${c.id} [${c.severity}]${skipNote}
 **Scope**: ${reg?.scope === 'app' ? 'per-application' : 'repository-wide'}
 **Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}
 ${desc ? `**Description**: ${desc}` : ''}
 ${evalInstr ? `**Evaluation**: ${evalInstr}` : ''}`;
-      }).join('\n\n');
+        })
+        .join('\n\n');
       return `### ${p} — ${pillarNames[p]} (${pillars[p].length} failing)\n\n${items}`;
-    }).join('\n\n');
+    })
+    .join('\n\n');
 
   // Build agent-only criteria section.
-  const agentOnlySection = agentOnly.map((c) => {
-    const skipNote = c.skippable ? ' [Skippable]' : '';
-    return `### ${c.droidId} [L${c.level}/${c.scope}${skipNote}]
+  const agentOnlySection = agentOnly
+    .map((c) => {
+      const skipNote = c.skippable ? ' [Skippable]' : '';
+      return `### ${c.droidId} [L${c.level}/${c.scope}${skipNote}]
 **Description**: ${c.description}
 **Evaluation**: ${c.evaluation}
 **Verification commands**:
 ${agentOnlyVerificationCommands(c.droidId)}`;
-  }).join('\n\n');
+    })
+    .join('\n\n');
 
   // Build top-5 remediation items (sorted by severity then difficulty).
   const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
-  const sorted = [...failed].sort((a, b) =>
-    (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
-    (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1)
+  const sorted = [...failed].sort(
+    (a, b) =>
+      (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
+      (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1),
   );
   const top5 = sorted.slice(0, 5);
 
-  const remediationItems = top5.map((c) => {
-    const reg = getCriterionByPiId(c.id);
-    const desc = reg ? reg.description : '';
-    const actionMap: Record<string, string> = {
-      'P0.1': 'Write a real README with project overview, setup, usage, and verification sections (>200 chars, >=2 content lines).',
-      'P1.1': 'Create AGENTS.md with install, test, lint, and build commands plus behavior rules.',
-      'P1.2': 'Add enforceable rules (must/always/never) AND backtick-quoted commands matching real scripts to AGENTS.md.',
-      'P2.1': 'Add a test directory and at least one real test with assertions.',
-      'P2.2': 'Configure a test runner (jest/vitest/pytest): install as devDependency, create config, add `test` script.',
-      'P2.3': 'Add a run-test one-liner (`npm test` / `make test`).',
-      'P3.1': 'Commit a lockfile for reproducible builds. Run `npm install` to generate it.',
-      'P3.2': 'Add a build step (`build` script in package.json or Makefile target).',
-      'P4.1': 'Add a CI workflow (.github/workflows/ci.yml) with checkout, install, test, and lint steps.',
-      'P4.2': 'Add a real test invocation in CI (not echo stubs). The workflow must run tests and fail on failure.',
-      'P4.3': 'Add pre-commit hooks (husky + lint-staged or .pre-commit-config.yaml) to enforce lint/format on commit.',
-      'P5.1': 'Configure a linter: install eslint/biome/ruff as devDependency, create config, add `lint` script.',
-      'P5.2': 'Configure a formatter (Prettier / Black / gofmt). Install as devDependency and add a `format` script.',
-      'P5.3': 'Configure a type checker: create tsconfig.json with strict mode, or mypy/pyright config.',
-      'P6.1': 'Harden .gitignore to cover .env, *.pem, *.key, node_modules/, dist/ (>=3 patterns).',
-      'P6.4': 'Wire a vulnerability scan (npm audit / pip-audit / gitleaks) into CI or pre-commit.',
-      'P8.1': 'Add .env.example listing required env vars with placeholder values.',
-    };
-    const action = actionMap[c.id] || `Fix ${c.id}: ${c.evidence}`;
-    return `### ${c.pillar} ${c.id} [${c.severity}/${c.difficulty || 'intermediate'}]
+  const remediationItems = top5
+    .map((c) => {
+      const reg = getCriterionByPiId(c.id);
+      const desc = reg ? reg.description : '';
+      const actionMap: Record<string, string> = {
+        'P0.1':
+          'Write a real README with project overview, setup, usage, and verification sections (>200 chars, >=2 content lines).',
+        'P1.1': 'Create AGENTS.md with install, test, lint, and build commands plus behavior rules.',
+        'P1.2':
+          'Add enforceable rules (must/always/never) AND backtick-quoted commands matching real scripts to AGENTS.md.',
+        'P2.1': 'Add a test directory and at least one real test with assertions.',
+        'P2.2':
+          'Configure a test runner (jest/vitest/pytest): install as devDependency, create config, add `test` script.',
+        'P2.3': 'Add a run-test one-liner (`npm test` / `make test`).',
+        'P3.1': 'Commit a lockfile for reproducible builds. Run `npm install` to generate it.',
+        'P3.2': 'Add a build step (`build` script in package.json or Makefile target).',
+        'P4.1': 'Add a CI workflow (.github/workflows/ci.yml) with checkout, install, test, and lint steps.',
+        'P4.2': 'Add a real test invocation in CI (not echo stubs). The workflow must run tests and fail on failure.',
+        'P4.3':
+          'Add pre-commit hooks (husky + lint-staged or .pre-commit-config.yaml) to enforce lint/format on commit.',
+        'P5.1': 'Configure a linter: install eslint/biome/ruff as devDependency, create config, add `lint` script.',
+        'P5.2': 'Configure a formatter (Prettier / Black / gofmt). Install as devDependency and add a `format` script.',
+        'P5.3': 'Configure a type checker: create tsconfig.json with strict mode, or mypy/pyright config.',
+        'P6.1': 'Harden .gitignore to cover .env, *.pem, *.key, node_modules/, dist/ (>=3 patterns).',
+        'P6.4': 'Wire a vulnerability scan (npm audit / pip-audit / gitleaks) into CI or pre-commit.',
+        'P8.1': 'Add .env.example listing required env vars with placeholder values.',
+      };
+      const action = actionMap[c.id] || `Fix ${c.id}: ${c.evidence}`;
+      return `### ${c.pillar} ${c.id} [${c.severity}/${c.difficulty || 'intermediate'}]
 **Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}
 ${desc ? `**Description**: ${desc}` : ''}
 **Fix**: ${action}`;
-  }).join('\n\n');
+    })
+    .join('\n\n');
 
-  const skippedInfo = skipped.length > 0
-    ? `\n**Skipped checks** (${skipped.length}): ${skipped.map(s => s.id).join(', ')} — these require gh CLI or other prerequisites. Attempt them if possible.\n`
-    : '';
+  const skippedInfo =
+    skipped.length > 0
+      ? `\n**Skipped checks** (${skipped.length}): ${skipped.map((s) => s.id).join(', ')} — these require gh CLI or other prerequisites. Attempt them if possible.\n`
+      : '';
 
   const appInfo = isMonorepo
-    ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps).map(([p, a]) => `${p} (${a.name})`).join(', ')}.\n`
+    ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps)
+        .map(([p, a]) => `${p} (${a.name})`)
+        .join(', ')}.\n`
     : '\n';
 
   return `You are running a full agent-readiness assessment and remediation on a codebase.

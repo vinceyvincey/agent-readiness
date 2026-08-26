@@ -1,0 +1,3 @@
+{
+  "postEdit": ["node --experimental-strip-types src/cli.ts . --json"]
+}

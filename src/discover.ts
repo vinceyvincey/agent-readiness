@@ -5,11 +5,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 export interface App {
-  path: string;       // relative to repo root (e.g. 'apps/web', or '.' for single-repo)
-  name: string;       // app name (from manifest or dir name)
-  type: string;       // 'single' | 'package' | 'app' | 'workspace-member'
+  path: string; // relative to repo root (e.g. 'apps/web', or '.' for single-repo)
+  name: string; // app name (from manifest or dir name)
+  type: string; // 'single' | 'package' | 'app' | 'workspace-member'
   description: string;
-  manifest?: string;  // relative path to manifest (package.json, pyproject.toml, etc.)
+  manifest?: string; // relative path to manifest (package.json, pyproject.toml, etc.)
 }
 
 // Glob-expand workspace patterns like 'packages/*' into actual directory paths.
@@ -18,13 +18,19 @@ function expandGlob(root: string, pattern: string): string[] {
   const base = parts.slice(0, -1).join('/');
   const tail = parts[parts.length - 1];
   const baseDir = path.join(root, base);
-  let entries: string[] = [];
-  try { entries = fs.readdirSync(baseDir, { withFileTypes: true }); } catch { return []; }
+  let entries: fs.Dirent[] = [];
+  try {
+    entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
   if (tail === '*') {
     return entries.filter((e) => e.isDirectory()).map((e) => path.join(base, e.name).replace(/\\/g, '/'));
   }
   // specific dir name
-  return entries.filter((e) => e.isDirectory() && e.name === tail).map((e) => path.join(base, e.name).replace(/\\/g, '/'));
+  return entries
+    .filter((e) => e.isDirectory() && e.name === tail)
+    .map((e) => path.join(base, e.name).replace(/\\/g, '/'));
 }
 
 // Read a description from a manifest file (package.json description, pyproject description, etc.).
@@ -35,13 +41,17 @@ function readDescription(root: string, rel: string): string {
     const pj = JSON.parse(content);
     if (pj.description) return pj.description;
     if (pj.name) return pj.name;
-  } catch { /* not json or missing */ }
+  } catch {
+    /* not json or missing */
+  }
   // pyproject.toml description
   try {
     const content = fs.readFileSync(path.join(root, rel), 'utf8');
     const m = content.match(/description\s*=\s*"([^"]*)"/);
     if (m) return m[1];
-  } catch { /* missing */ }
+  } catch {
+    /* missing */
+  }
   return '';
 }
 
@@ -71,7 +81,9 @@ export function discoverApps(root: string): App[] {
         }
       }
     }
-  } catch { /* not package.json or no workspaces */ }
+  } catch {
+    /* not package.json or no workspaces */
+  }
 
   // 2. pnpm-workspace.yaml
   try {
@@ -85,10 +97,15 @@ export function discoverApps(root: string): App[] {
         }
       }
     }
-  } catch { /* no pnpm-workspace.yaml */ }
+  } catch {
+    /* no pnpm-workspace.yaml */
+  }
 
   // 3. turbo.json / nx.json / lerna.json (signal for monorepo; apps found via globs)
-  const hasMonorepoConfig = fs.existsSync(path.join(root, 'turbo.json')) || fs.existsSync(path.join(root, 'nx.json')) || fs.existsSync(path.join(root, 'lerna.json'));
+  const hasMonorepoConfig =
+    fs.existsSync(path.join(root, 'turbo.json')) ||
+    fs.existsSync(path.join(root, 'nx.json')) ||
+    fs.existsSync(path.join(root, 'lerna.json'));
 
   // 4. Glob: packages/*/package.json and apps/*/package.json
   if (apps.length === 0 || hasMonorepoConfig) {
@@ -105,10 +122,15 @@ export function discoverApps(root: string): App[] {
     const gowork = fs.readFileSync(path.join(root, 'go.work'), 'utf8');
     const dirs = gowork.match(/directory\s*=\s*([^\n]+)/g) || gowork.match(/^\s*\.\.\/(\S+)/gm) || [];
     for (const d of dirs) {
-      const rel = d.replace(/directory\s*=\s*/, '').replace(/^\s*\.\.\//, '').trim();
+      const rel = d
+        .replace(/directory\s*=\s*/, '')
+        .replace(/^\s*\.\.\//, '')
+        .trim();
       if (fs.existsSync(path.join(root, rel, 'go.mod'))) addApp(rel, 'go-module', path.join(rel, 'go.mod'));
     }
-  } catch { /* no go.work */ }
+  } catch {
+    /* no go.work */
+  }
 
   // 6. Cargo.toml [workspace] members
   try {
@@ -121,16 +143,20 @@ export function discoverApps(root: string): App[] {
         for (const m of members) {
           const pat = m.replace(/"/g, '');
           for (const dir of expandGlob(root, pat)) {
-            if (fs.existsSync(path.join(root, dir, 'Cargo.toml'))) addApp(dir, 'rust-crate', path.join(dir, 'Cargo.toml'));
+            if (fs.existsSync(path.join(root, dir, 'Cargo.toml')))
+              addApp(dir, 'rust-crate', path.join(dir, 'Cargo.toml'));
           }
         }
       }
     }
-  } catch { /* no Cargo.toml or not a workspace */ }
+  } catch {
+    /* no Cargo.toml or not a workspace */
+  }
 
   // 7. Python: multiple pyproject.toml in subdirs (packages/*/pyproject.toml)
   for (const dir of expandGlob(root, 'packages/*')) {
-    if (fs.existsSync(path.join(root, dir, 'pyproject.toml'))) addApp(dir, 'python-package', path.join(dir, 'pyproject.toml'));
+    if (fs.existsSync(path.join(root, dir, 'pyproject.toml')))
+      addApp(dir, 'python-package', path.join(dir, 'pyproject.toml'));
   }
 
   // Fallback: single-app repo
@@ -138,7 +164,10 @@ export function discoverApps(root: string): App[] {
     const name = path.basename(root) || 'root';
     let manifest: string | undefined;
     for (const m of ['package.json', 'pyproject.toml', 'go.mod', 'Cargo.toml']) {
-      if (fs.existsSync(path.join(root, m))) { manifest = m; break; }
+      if (fs.existsSync(path.join(root, m))) {
+        manifest = m;
+        break;
+      }
     }
     apps.push({ path: '.', name, type: 'single', description: '', manifest });
   }

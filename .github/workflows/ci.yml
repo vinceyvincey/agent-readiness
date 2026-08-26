@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Test & Lint & Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run typecheck
+      # AGENTS.md validation: verify the documented commands still exist as scripts.
+      - name: Validate AGENTS.md commands
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            const scripts = Object.keys(pkg.scripts || {});
+            const text = fs.readFileSync("AGENTS.md", "utf8");
+            const cmds = text.match(/npm (?:run )?([a-z:-]+)/g) || [];
+            const missing = [...new Set(cmds.map(c => c.replace(/npm (?:run )?/, "")))]
+              .filter(c => !scripts.includes(c));
+            if (missing.length) { console.error("AGENTS.md references missing scripts:", missing); process.exit(1); }
+            console.log("AGENTS.md commands validated:", [...new Set(cmds)].join(", "));
+          '

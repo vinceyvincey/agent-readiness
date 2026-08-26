@@ -1,0 +1,4 @@
+#!/bin/sh
+# Pre-commit hook: keep lint + typecheck healthy.
+# Skipped in CI or when running under a clean install.
+npm run lint && npm run typecheck

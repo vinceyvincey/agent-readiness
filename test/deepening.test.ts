@@ -7,8 +7,10 @@ import * as path from 'node:path';
 let failures = 0;
 const eq = (label: string, got: any, want: any) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) { failures++; console.log('FAIL', label, 'got', got, 'want', want); }
-  else console.log('ok', label);
+  if (!ok) {
+    failures++;
+    console.log('FAIL', label, 'got', got, 'want', want);
+  } else console.log('ok', label);
 };
 
 function mkRepo(): string {
@@ -30,7 +32,11 @@ function write(d: string, rel: string, content: string) {
 }
 {
   const d = mkRepo();
-  write(d, 'README.md', '# Acme\n\nA real project that does X. It processes events, transforms them, and exposes a clean HTTP API for consumers. This README covers setup, usage, and verification.\n\n## Usage\nInstall deps with npm install. Run with npm start. Verify with npm test.\n');
+  write(
+    d,
+    'README.md',
+    '# Acme\n\nA real project that does X. It processes events, transforms them, and exposes a clean HTTP API for consumers. This README covers setup, usage, and verification.\n\n## Usage\nInstall deps with npm install. Run with npm start. Verify with npm test.\n',
+  );
   const r = runReadiness(d);
   const c = r.findings.find((f) => f.id === 'P0.1')!;
   eq('P0.1 passes on real README', c.pass, true);
@@ -65,7 +71,11 @@ function write(d: string, rel: string, content: string) {
 // ---- P4.2: CI yaml with only echo fails, one with real test passes ----
 {
   const d = mkRepo();
-  write(d, '.github/workflows/ci.yml', 'name: CI\non: push\njobs:\n  test:\n    steps:\n      - run: echo \'Add your steps here\'\n');
+  write(
+    d,
+    '.github/workflows/ci.yml',
+    "name: CI\non: push\njobs:\n  test:\n    steps:\n      - run: echo 'Add your steps here'\n",
+  );
   const r = runReadiness(d);
   const c = r.findings.find((f) => f.id === 'P4.2')!;
   eq('P4.2 fails on echo-only CI', c.pass, false);
@@ -135,9 +145,13 @@ function write(d: string, rel: string, content: string) {
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
   let sorted = true;
   for (let i = 1; i < pl.length; i++) {
-    const prev = pl[i - 1], curr = pl[i];
+    const prev = pl[i - 1],
+      curr = pl[i];
     const s = (sevRank[prev.severity] ?? 3) - (sevRank[curr.severity] ?? 3);
-    if (s > 0 || (s === 0 && (diffRank[prev.difficulty] ?? 1) > (diffRank[curr.difficulty] ?? 1))) { sorted = false; break; }
+    if (s > 0 || (s === 0 && (diffRank[prev.difficulty] ?? 1) > (diffRank[curr.difficulty] ?? 1))) {
+      sorted = false;
+      break;
+    }
   }
   eq('punchlist sorted by severity then difficulty', sorted, true);
 }

@@ -19,8 +19,11 @@ export function historyPath(root: string, dir?: string): string {
 
 export function readHistory(root: string, dir?: string): HistoryEntry[] {
   const p = historyPath(root, dir);
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')) as HistoryEntry[]; }
-  catch { return []; }
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8')) as HistoryEntry[];
+  } catch {
+    return [];
+  }
 }
 
 // Append the current run to history (dedupe runs with identical overall+level within a short window is left to caller).
@@ -53,19 +56,27 @@ export interface TrendDelta {
 // Compare the most recent run against the previous one (if any) for a simple trend.
 export function trend(last: HistoryEntry[], opts: { report?: ReadinessReport } = {}): TrendDelta {
   const to = opts.report
-    ? ({ date: opts.report.run.date, rubric_version: opts.report.rubric_version, config_hash: opts.report.config_hash, level: opts.report.level, overall: opts.report.overall, perPillar: Object.fromEntries(Object.entries(opts.report.pillars).map(([k, v]) => [k, v.pct])) } as HistoryEntry)
+    ? ({
+        date: opts.report.run.date,
+        rubric_version: opts.report.rubric_version,
+        config_hash: opts.report.config_hash,
+        level: opts.report.level,
+        overall: opts.report.overall,
+        perPillar: Object.fromEntries(Object.entries(opts.report.pillars).map(([k, v]) => [k, v.pct])),
+      } as HistoryEntry)
     : last[last.length - 1];
-  const from = last.length >= 2 ? last[last.length - 2] : (last.length === 1 ? null : null);
+  const from = last.length >= 2 ? last[last.length - 2] : last.length === 1 ? null : null;
   const prev = from || null;
   const perPillarDelta: Record<string, number> = {};
   if (prev) {
-    for (const k of Object.keys(to.perPillar)) perPillarDelta[k] = Math.round((to.perPillar[k] - (prev.perPillar[k] ?? 0)) * 10) / 10;
+    for (const k of Object.keys(to.perPillar))
+      perPillarDelta[k] = Math.round((to.perPillar[k] - (prev.perPillar[k] ?? 0)) * 10) / 10;
   }
   return {
     from: prev,
     to,
     overallDelta: prev ? Math.round((to.overall - prev.overall) * 10) / 10 : null,
-    levelDelta: prev ? (to.level === prev.level ? prev.level : (prev.level + ' -> ' + to.level)) : null,
+    levelDelta: prev ? (to.level === prev.level ? prev.level : prev.level + ' -> ' + to.level) : null,
     perPillarDelta,
     count: last.length,
   };

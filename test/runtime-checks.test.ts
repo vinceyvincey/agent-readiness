@@ -1,5 +1,10 @@
 // M16: tests for the runtime verification layer.
-import { getRuntimeVerifications, runRuntimeVerifications, applyRuntimeResults, type RuntimeVerification } from '../src/runtime-checks.ts';
+import {
+  getRuntimeVerifications,
+  runRuntimeVerifications,
+  applyRuntimeResults,
+  type RuntimeVerification,
+} from '../src/runtime-checks.ts';
 import { runReadiness, resolveLevelDroid } from '../src/engine.ts';
 import type { CheckResult } from '../src/checks.ts';
 import * as fs from 'node:fs';
@@ -10,8 +15,10 @@ import { spawnSync } from 'node:child_process';
 let failures = 0;
 const eq = (label: string, got: any, want: any) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) { failures++; console.log('FAIL', label, 'got', got, 'want', want); }
-  else console.log('ok', label);
+  if (!ok) {
+    failures++;
+    console.log('FAIL', label, 'got', got, 'want', want);
+  } else console.log('ok', label);
 };
 
 function mkRepo(): string {
@@ -26,20 +33,41 @@ function write(d: string, rel: string, content: string) {
 // ---- getRuntimeVerifications: TS/JS with vitest ----
 {
   const d = mkRepo();
-  write(d, 'package.json', JSON.stringify({
-    name: 'test', scripts: { test: 'vitest', lint: 'eslint .' },
-    devDependencies: { vitest: '^1.0', eslint: '^8.0' },
-  }));
+  write(
+    d,
+    'package.json',
+    JSON.stringify({
+      name: 'test',
+      scripts: { test: 'vitest', lint: 'eslint .' },
+      devDependencies: { vitest: '^1.0', eslint: '^8.0' },
+    }),
+  );
   write(d, 'tsconfig.json', '{"compilerOptions":{"strict":true}}');
   write(d, 'test/foo.test.ts', 'import { test } from "vitest"; test("x", () => {});');
   const r = runReadiness(d);
-  const passingIds = new Set(r.findings.filter(f => f.pass && !f.skipped).map(f => f.id));
+  const passingIds = new Set(r.findings.filter((f) => f.pass && !f.skipped).map((f) => f.id));
   const verifications = getRuntimeVerifications(d, 'typescript', passingIds);
-  eq('TS has P2.2 verification', verifications.some(v => v.checkId === 'P2.2'), true);
-  eq('TS P2.2 uses vitest (via node -e)', verifications.find(v => v.checkId === 'P2.2')?.command.includes('node'), true);
+  eq(
+    'TS has P2.2 verification',
+    verifications.some((v) => v.checkId === 'P2.2'),
+    true,
+  );
+  eq(
+    'TS P2.2 uses vitest (via node -e)',
+    verifications.find((v) => v.checkId === 'P2.2')?.command.includes('node'),
+    true,
+  );
   // P5.1/P5.3 verifications correctly gated on node_modules existing (not present in test repo)
-  eq('TS P5.1 not verified without node_modules', verifications.some(v => v.checkId === 'P5.1'), false);
-  eq('TS P5.3 not verified without node_modules', verifications.some(v => v.checkId === 'P5.3'), false);
+  eq(
+    'TS P5.1 not verified without node_modules',
+    verifications.some((v) => v.checkId === 'P5.1'),
+    false,
+  );
+  eq(
+    'TS P5.3 not verified without node_modules',
+    verifications.some((v) => v.checkId === 'P5.3'),
+    false,
+  );
 }
 
 // ---- getRuntimeVerifications: Python ----
@@ -48,9 +76,13 @@ function write(d: string, rel: string, content: string) {
   write(d, 'pyproject.toml', '[tool.pytest]\n[tool.ruff]\n[tool.mypy]\n');
   write(d, 'test/test_foo.py', 'def test_foo(): pass\n');
   const r = runReadiness(d);
-  const passingIds = new Set(r.findings.filter(f => f.pass && !f.skipped).map(f => f.id));
+  const passingIds = new Set(r.findings.filter((f) => f.pass && !f.skipped).map((f) => f.id));
   const verifications = getRuntimeVerifications(d, 'python', passingIds);
-  eq('Python has P2.2 verification', passingIds.has('P2.2') ? verifications.some(v => v.checkId === 'P2.2') : true, true);
+  eq(
+    'Python has P2.2 verification',
+    passingIds.has('P2.2') ? verifications.some((v) => v.checkId === 'P2.2') : true,
+    true,
+  );
 }
 
 // ---- getRuntimeVerifications: unknown language → empty ----
@@ -64,12 +96,24 @@ function write(d: string, rel: string, content: string) {
 // ---- getRuntimeVerifications: only includes passing checks ----
 {
   const d = mkRepo();
-  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'vitest' }, devDependencies: { vitest: '^1.0' } }));
+  write(
+    d,
+    'package.json',
+    JSON.stringify({ name: 'test', scripts: { test: 'vitest' }, devDependencies: { vitest: '^1.0' } }),
+  );
   write(d, 'test/foo.test.ts', 'test("x", () => {});');
   // P5.1 (linter) is NOT passing (no eslint config)
   const verifications = getRuntimeVerifications(d, 'typescript', new Set(['P2.2', 'P2.12']));
-  eq('only passing checks get verifications', verifications.some(v => v.checkId === 'P5.1'), false);
-  eq('passing P2.2 gets verification', verifications.some(v => v.checkId === 'P2.2'), true);
+  eq(
+    'only passing checks get verifications',
+    verifications.some((v) => v.checkId === 'P5.1'),
+    false,
+  );
+  eq(
+    'passing P2.2 gets verification',
+    verifications.some((v) => v.checkId === 'P2.2'),
+    true,
+  );
 }
 
 // ---- runRuntimeVerifications: marks verified on exit 0 ----
@@ -143,7 +187,15 @@ function write(d: string, rel: string, content: string) {
 // ---- Engine with verify=true runs runtime verification ----
 {
   const d = mkRepo();
-  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'vitest', lint: 'eslint .' }, devDependencies: { vitest: '^1.0' } }));
+  write(
+    d,
+    'package.json',
+    JSON.stringify({
+      name: 'test',
+      scripts: { test: 'vitest', lint: 'eslint .' },
+      devDependencies: { vitest: '^1.0' },
+    }),
+  );
   write(d, 'test/foo.test.ts', 'test("x", () => {});');
   // Without verify: standard deterministic
   const r1 = runReadiness(d);
@@ -158,10 +210,14 @@ function write(d: string, rel: string, content: string) {
 // ---- P2.12 check: passes with test runner + test files ----
 {
   const d = mkRepo();
-  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'vitest' }, devDependencies: { vitest: '^1.0' } }));
+  write(
+    d,
+    'package.json',
+    JSON.stringify({ name: 'test', scripts: { test: 'vitest' }, devDependencies: { vitest: '^1.0' } }),
+  );
   write(d, 'test/foo.test.ts', 'test("x", () => {});');
   const r = runReadiness(d);
-  const p212 = r.findings.find(f => f.id === 'P2.12');
+  const p212 = r.findings.find((f) => f.id === 'P2.12');
   eq('P2.12 exists', !!p212, true);
   eq('P2.12 passes with runner + files', p212?.pass, true);
 }
@@ -169,10 +225,14 @@ function write(d: string, rel: string, content: string) {
 // ---- P2.12 check: fails without test files ----
 {
   const d = mkRepo();
-  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'vitest' }, devDependencies: { vitest: '^1.0' } }));
+  write(
+    d,
+    'package.json',
+    JSON.stringify({ name: 'test', scripts: { test: 'vitest' }, devDependencies: { vitest: '^1.0' } }),
+  );
   // No test files
   const r = runReadiness(d);
-  const p212 = r.findings.find(f => f.id === 'P2.12');
+  const p212 = r.findings.find((f) => f.id === 'P2.12');
   eq('P2.12 fails without test files', p212?.pass, false);
 }
 
@@ -181,7 +241,9 @@ function write(d: string, rel: string, content: string) {
   const d = mkRepo();
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--verify'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 60000,
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 60000,
   });
   const output = res.stdout || '';
   eq('CLI --verify produces output', output.length > 0, true);
@@ -196,34 +258,74 @@ function write(d: string, rel: string, content: string) {
 // ---- M16: Expanded runtime verifications (P4.1, P4.3, P6.4, P5.8) ----
 {
   const d = mkRepo();
-  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'vitest', lint: 'eslint .' }, devDependencies: { vitest: '^1.0', eslint: '^8.0', knip: '^5.0' } }));
+  write(
+    d,
+    'package.json',
+    JSON.stringify({
+      name: 'test',
+      scripts: { test: 'vitest', lint: 'eslint .' },
+      devDependencies: { vitest: '^1.0', eslint: '^8.0', knip: '^5.0' },
+    }),
+  );
   write(d, 'test/foo.test.ts', 'test("x", () => {});');
   // Create a valid CI workflow
-  write(d, '.github/workflows/ci.yml', 'name: CI\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n');
+  write(
+    d,
+    '.github/workflows/ci.yml',
+    'name: CI\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n',
+  );
   // Create pre-commit config
-  write(d, '.pre-commit-config.yaml', 'repos:\n  - repo: local\n    hooks:\n      - id: eslint\n        name: eslint\n        entry: eslint .\n        language: system\n');
+  write(
+    d,
+    '.pre-commit-config.yaml',
+    'repos:\n  - repo: local\n    hooks:\n      - id: eslint\n        name: eslint\n        entry: eslint .\n        language: system\n',
+  );
   const r = runReadiness(d);
-  const passingIds = new Set(r.findings.filter(f => f.pass && !f.skipped).map(f => f.id));
+  const passingIds = new Set(r.findings.filter((f) => f.pass && !f.skipped).map((f) => f.id));
   const verifications = getRuntimeVerifications(d, 'typescript', passingIds);
   // P4.1: CI workflow validation (always available since it uses node -e)
-  eq('has P4.1 CI workflow verification', verifications.some(v => v.checkId === 'P4.1'), passingIds.has('P4.1'));
+  eq(
+    'has P4.1 CI workflow verification',
+    verifications.some((v) => v.checkId === 'P4.1'),
+    passingIds.has('P4.1'),
+  );
   // P4.3: pre-commit verification (only if pre-commit is on PATH)
-  eq('has P4.3 pre-commit verification if passing', passingIds.has('P4.3') ? verifications.some(v => v.checkId === 'P4.3') || true : true, true);
+  eq(
+    'has P4.3 pre-commit verification if passing',
+    passingIds.has('P4.3') ? verifications.some((v) => v.checkId === 'P4.3') || true : true,
+    true,
+  );
   // P6.4: vuln scan (npm audit if node_modules exists, gitleaks if on PATH)
-  eq('has P6.4 vuln scan verification if passing', passingIds.has('P6.4') ? verifications.some(v => v.checkId === 'P6.4') || true : true, true);
+  eq(
+    'has P6.4 vuln scan verification if passing',
+    passingIds.has('P6.4') ? verifications.some((v) => v.checkId === 'P6.4') || true : true,
+    true,
+  );
   // P5.8: dead code (knip if in deps and node_modules exists)
-  eq('has P5.8 dead code verification if passing', passingIds.has('P5.8') ? verifications.some(v => v.checkId === 'P5.8') || true : true, true);
+  eq(
+    'has P5.8 dead code verification if passing',
+    passingIds.has('P5.8') ? verifications.some((v) => v.checkId === 'P5.8') || true : true,
+    true,
+  );
 }
 
 // ---- P4.1 CI workflow validation: valid workflow passes ----
 {
   const d = mkRepo();
-  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { build: 'tsc' }, devDependencies: { typescript: '^5.0' } }));
-  write(d, '.github/workflows/ci.yml', 'name: CI\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n');
+  write(
+    d,
+    'package.json',
+    JSON.stringify({ name: 'test', scripts: { build: 'tsc' }, devDependencies: { typescript: '^5.0' } }),
+  );
+  write(
+    d,
+    '.github/workflows/ci.yml',
+    'name: CI\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n',
+  );
   const r = runReadiness(d);
-  const passingIds = new Set(r.findings.filter(f => f.pass && !f.skipped).map(f => f.id));
+  const passingIds = new Set(r.findings.filter((f) => f.pass && !f.skipped).map((f) => f.id));
   const verifications = getRuntimeVerifications(d, 'typescript', passingIds);
-  const p41 = verifications.find(v => v.checkId === 'P4.1');
+  const p41 = verifications.find((v) => v.checkId === 'P4.1');
   if (p41) {
     const results = runRuntimeVerifications(d, [p41]);
     eq('P4.1 valid workflow verifies', results[0].verified, true);
@@ -235,16 +337,24 @@ function write(d: string, rel: string, content: string) {
 // ---- P4.1 CI workflow validation: invalid workflow fails ----
 {
   const d = mkRepo();
-  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { build: 'tsc' }, devDependencies: { typescript: '^5.0' } }));
+  write(
+    d,
+    'package.json',
+    JSON.stringify({ name: 'test', scripts: { build: 'tsc' }, devDependencies: { typescript: '^5.0' } }),
+  );
   // Invalid workflow: no jobs: or runs-on:
   write(d, '.github/workflows/ci.yml', 'name: CI\non: [push]\n# broken workflow\n');
   // Force P4.1 to pass by also having a valid one
-  write(d, '.github/workflows/deploy.yml', 'name: Deploy\non: [push]\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo deploy\n');
+  write(
+    d,
+    '.github/workflows/deploy.yml',
+    'name: Deploy\non: [push]\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo deploy\n',
+  );
   const r = runReadiness(d);
-  const passingIds = new Set(r.findings.filter(f => f.pass && !f.skipped).map(f => f.id));
+  const passingIds = new Set(r.findings.filter((f) => f.pass && !f.skipped).map((f) => f.id));
   if (passingIds.has('P4.1')) {
     const verifications = getRuntimeVerifications(d, 'typescript', passingIds);
-    const p41 = verifications.find(v => v.checkId === 'P4.1');
+    const p41 = verifications.find((v) => v.checkId === 'P4.1');
     if (p41) {
       const results = runRuntimeVerifications(d, [p41]);
       // Should verify since deploy.yml has valid structure
@@ -274,7 +384,9 @@ function write(d: string, rel: string, content: string) {
   const d = mkRepo();
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--droid-scoring'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 30000,
   });
   try {
     const j = JSON.parse(res.stdout || '');
@@ -288,9 +400,15 @@ function write(d: string, rel: string, content: string) {
 {
   const d = mkRepo();
   write(d, 'src/index.ts', 'export const x = 1;\n');
-  const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--model', 'claude-sonnet-4'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
-  });
+  const res = spawnSync(
+    'node',
+    ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--model', 'claude-sonnet-4'],
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      timeout: 30000,
+    },
+  );
   try {
     const j = JSON.parse(res.stdout || '');
     eq('CLI --model sets report.run.model', j.run.model, 'claude-sonnet-4');
@@ -304,7 +422,9 @@ function write(d: string, rel: string, content: string) {
   const d = mkRepo();
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--model=gpt-4o'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 30000,
   });
   try {
     const j = JSON.parse(res.stdout || '');
@@ -319,7 +439,9 @@ function write(d: string, rel: string, content: string) {
   const d = mkRepo();
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 30000,
     env: { ...process.env, PI_MODEL: '' },
   });
   try {
@@ -336,7 +458,9 @@ function write(d: string, rel: string, content: string) {
   write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'vitest' } }));
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const res = spawnSync('node', ['--experimental-strip-types', 'src/cli.ts', d, '--json', '--verify'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 30000,
   });
   try {
     const j = JSON.parse(res.stdout || '');
