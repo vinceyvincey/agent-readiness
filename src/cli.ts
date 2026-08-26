@@ -9,6 +9,8 @@
 //   --verify           Runtime verification: actually runs commands to verify configs work
 //   --strict           CI gate: exit 1 if mandatory pillars (P2/P6) fail
 //   --droid-scoring    Use Droid's flat pass rate for level calculation
+//   --no-html           Skip the visual HTML report
+//   --open              Open the HTML report in the default browser
 //
 // Model control:
 //   --model <id>       Model ID for agentic modes (default: PI_MODEL env var, or 'default')
@@ -19,6 +21,7 @@ import { draftsFor, writeFixes, agentPromptFor, assessmentPromptFor } from './fi
 import { readHistory, trend } from './history.ts';
 import { badgeMarkdown } from './badge.ts';
 import { spawnSync } from 'node:child_process';
+import * as path from 'node:path';
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('--')) || process.cwd();
@@ -31,6 +34,8 @@ const hist = args.includes('--history');
 const badge = args.includes('--badge');
 const verify = args.includes('--verify');
 const droidScoring = args.includes('--droid-scoring');
+const noHtml = args.includes('--no-html');
+const open = args.includes('--open');
 
 // Model control: --model <id> or --model=<id>, default to PI_MODEL env var
 const modelArg = args.find(a => a.startsWith('--model'));
@@ -158,10 +163,22 @@ if (fix) {
   }
 }
 
+// Always persist artifacts (json + md + visual html) into .agent-readiness/.
+let htmlPath = '';
+try {
+  const dir = writeReport(target, report, undefined, { html: !noHtml });
+  htmlPath = path.join(dir, 'report.html');
+  if (!json && !noHtml) process.stdout.write('\n## Report artifacts\n- ' + dir + '/report.json\n- ' + dir + '/report.md\n- ' + htmlPath + '\n');
+} catch { /* read-only target ok */ }
+
+// --open: best-effort open the HTML report in the default browser.
+if (open && htmlPath) {
+  const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+  try { spawnSync(cmd, [htmlPath], { detached: true, stdio: 'ignore' }); } catch { /* best-effort */ }
+}
+
 // --strict: exit non-zero if any mandatory scope (P2/P6) fails the gate.
 if (strict) {
   const gateFail = MANDATORY.some((m) => (report.pillars[m]?.pct ?? 0) < 80);
-  // persist report so CI/PR can diff
-  try { writeReport(target, report); } catch { /* read-only ok */ }
   process.exit(gateFail ? 1 : 0);
 }

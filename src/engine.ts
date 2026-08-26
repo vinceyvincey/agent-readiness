@@ -5,7 +5,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { appendHistory } from './history.ts';
+import { appendHistory, readHistory } from './history.ts';
+import { renderHtml } from './html-report.ts';
 import { getRuntimeVerifications, runRuntimeVerifications, applyRuntimeResults } from './runtime-checks.ts';
 import { getCriterionByPiId } from './criteria-registry.ts';
 
@@ -313,11 +314,16 @@ export function renderMarkdown(report: ReadinessReport): string {
   return `# Agent Readiness Report\n\n- Level: **${report.level}**\n- Overall: **${report.overall}/100** (${scoringModel})\n- Droid-compatible pass rate: **${report.droidPassRate}%** (flat, all signals weighted equally)\n- rubric_version: ${report.rubric_version} · config_hash: ${report.config_hash}\n- repo: ${report.repo.path} (${report.repo.language})${commit}\n\n## Pillars\n| Pillar | Passed/Total | Pct (per-app) |\n|---|---|---|\n${rows}\n\n## Top Punchlist (severity → difficulty)\n${punch}${appList}\n\n_Run ${report.run.date} · model ${report.run.model} · strict=${report.run.strict}_\n`;
 }
 
-export function writeReport(root: string, report: ReadinessReport, targetDir?: string): string {
+export function writeReport(root: string, report: ReadinessReport, targetDir?: string, opts: { html?: boolean } = {}): string {
   const dir = targetDir || path.join(root, '.agent-readiness');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify(report, null, 2));
   fs.writeFileSync(path.join(dir, 'report.md'), renderMarkdown(report));
+  if (opts.html !== false) {
+    // Visual HTML report: read history BEFORE appending so the delta section
+    // compares against the previous run. Best-effort — never breaks other artifacts.
+    try { fs.writeFileSync(path.join(dir, 'report.html'), renderHtml(report, { history: readHistory(root, dir) })); } catch { /* html is best-effort */ }
+  }
   try { appendHistory(report, root, dir); } catch { /* history is best-effort */ }
   return dir;
 }

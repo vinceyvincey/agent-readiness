@@ -22,12 +22,12 @@ export default function (pi: ExtensionAPI) {
     const engine = await loadEngine();
     const report = engine.runReadiness(target, { model: ctx.model?.id || 'pi' });
     const dir = engine.writeReport(target, report);
-    ctx.ui.notify(`Readiness ${report.level} (${report.overall}/100) -> ${dir}`, report.level !== 'L0' ? 'info' : 'warning');
+    ctx.ui.notify(`Readiness ${report.level} (${report.overall}/100) -> ${dir}/report.html`, report.level !== 'L0' ? 'info' : 'warning');
     return engine.renderMarkdown(report);
   };
 
   pi.registerCommand('readiness-report', {
-    description: 'Run the agent-readiness audit and write a report (level, per-pillar, punchlist).',
+    description: 'Run the agent-readiness audit and write a report (markdown + JSON + visual HTML).',
     handler: reportCommand,
   });
 

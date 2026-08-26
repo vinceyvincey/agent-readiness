@@ -51,7 +51,7 @@ For each pillar P0..P9:
 - Report the top feedback-loop cost, not just 'raise level'.
 
 ## PHASE 5 - Emit report
-- `agent-readiness-report.md` + `agent-readiness-report.json` (same fields).
+- `agent-readiness-report.md` + `agent-readiness-report.json` + a visual, self-contained `report.html` (markdown + JSON + HTML).
 - stdout summary: level, overall, per-pillar table, top punchlist.
 - If `--strict`: exit code 1 on any Mandatory/hard gate miss.
 - If `--history`: append to `.agent-readiness/history.json` (git-ignored), stamping timestamp + rubric_version.

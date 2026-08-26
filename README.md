@@ -25,7 +25,8 @@ Research + design committed. **M1-M16 done + verified.** M1-M5: skill, engine, e
 - src/fix.ts - --fix remediation drafts (dry-run) + agentPromptFor (remediation) + assessmentPromptFor (5-phase Droid-style assessment, no file mods, full descriptions + verification commands for 7 agent-only criteria)
 - src/history.ts - append-only per-repo score history + trend deltas
 - src/badge.ts - inline markdown readiness badge
-- test/ - 9 test suites (engine, history, checks, deepening, monorepo, fix, criteria-registry, side-by-side, runtime-checks) — 283 assertions, all ALL PASS
+- src/html-report.ts - visual self-contained HTML report (Droid-inspired: score donut, level ladder with locks, what-changed deltas, punchlist cards, filterable criteria table; light/dark)
+- test/ - 10 test suites (engine, history, checks, deepening, monorepo, fix, criteria-registry, side-by-side, runtime-checks) — 283 assertions, all ALL PASS
 - validation/side-by-side.ts - reusable harness: runs pi deterministic + pi hybrid (agentPromptFor via droid exec) + Droid /readiness-report on same repos, 3-way criteria comparison, fix comparison
 - docs/traces/ - Droid session trace extracts (readiness-report prompt, readiness-fix prompt, 84-criteria CSV, criteria mapping)
 

@@ -174,6 +174,15 @@
 - Verify: all 8 test suites pass (223 total assertions); run 3-way side-by-side harness to measure agreement improvement.
 
 ## M16 - Close remaining parity gaps (3 parts) - DONE
+
+## M17 - Visual HTML report - DONE
+- [x] src/html-report.ts: renderHtml(report, {history}) — self-contained report.html (inline CSS + embedded __DATA__ + vanilla JS), light-first with dark autoswitch (prefers-color-scheme) AND html[data-theme] overrides for deterministic forcing.
+- [x] Droid-inspired layout: sticky nav, hero with SVG score donut, "What changed" delta section + history sparkline (first run shows baseline), level ladder with 80%-gate lock states, Fix-next punchlist cards with copy buttons, pillar grid, filterable/searchable criteria table with expandable evidence, provenance + apps footer.
+- [x] engine.writeReport always emits report.html (reads history before append so deltas compare vs previous run); html:false opt-out; best-effort (never blocks json/md).
+- [x] CLI: --no-html, --open (xdg-open/open/start), artifacts path summary.
+- [x] Extension /readiness-report notify points at report.html.
+- [x] test/html-report.test.ts: content, XSS escaping, zero external refs, first-run vs update variants, level-lock parity with resolveLevel, structure, integration, size guard.
+- [x] Browser-validated via agent-browser MCP: zero network requests, filter/search/expand/pillar-drill-down/copy interactions verified, light + dark screenshots captured under .agent-readiness/validate/.
 - [x] Part A: 3 new deterministic grep-based checks — P7.15 (circuit_breakers), P7.16 (log_scrubbing), P6.10 (pii_handling). Agent-only 7→4. Pi-mapped 77→80.
 - [x] Part B: Runtime verification layer — new `src/runtime-checks.ts`. `--verify` flag runs actual commands (`npm test -- --listTests`, `tsc --noEmit`, `npm run lint`, `npm run build`) to verify configs work, not just exist. Downgrades passing checks to failing when runtime verification fails. Language-aware (TS/JS, Python, Go, Rust). Handles missing commands/timeouts gracefully. New P2.12 (unit_tests_runnable) deterministic check. Agent-only 4→3. Pi-mapped 80→81 (96%).
 - [x] Part C: Droid-compatible flat pass rate — `droidPassRate` field in ReadinessReport and report.md. Calculated as (non-skipped passing mapped criteria) / (total non-skipped mapped criteria). Enables direct score comparison with Droid's model.
