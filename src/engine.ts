@@ -3,6 +3,7 @@ import { getPillars, type Repo, type CheckResult } from './checks.ts';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
+import { appendHistory } from './history.ts';
 
 export const RUBRIC_VERSION = '0.1.0';
 
@@ -138,6 +139,7 @@ export function writeReport(root: string, report: ReadinessReport, targetDir?: s
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify(report, null, 2));
   fs.writeFileSync(path.join(dir, 'report.md'), renderMarkdown(report));
+  try { appendHistory(report, root, dir); } catch { /* history is best-effort */ }
   return dir;
 }
 

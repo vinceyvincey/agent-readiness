@@ -2,6 +2,8 @@
 // Usage: node --experimental-strip-types src/cli.ts <path> [--json] [--strict]
 import { runReadiness, writeReport, renderMarkdown, MANDATORY } from './engine.ts';
 import { draftsFor, writeFixes } from './fix.ts';
+import { readHistory, trend } from './history.ts';
+import { badgeMarkdown } from './badge.ts';
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('--')) || process.cwd();
@@ -9,6 +11,8 @@ const json = args.includes('--json');
 const strict = args.includes('--strict');
 const fix = args.includes('--fix');
 const apply = args.includes('--apply');
+const hist = args.includes('--history');
+const badge = args.includes('--badge');
 
 const report = runReadiness(target, { model: process.env.PI_MODEL || 'cli', strict });
 
@@ -16,6 +20,22 @@ if (json) {
   process.stdout.write(JSON.stringify(report, null, 2) + '\n');
 } else {
   process.stdout.write(renderMarkdown(report));
+}
+
+// --badge: emit an inline markdown badge.
+if (badge) process.stdout.write(badgeMarkdown(report) + '\n');
+
+// --history: show trend vs previous run (chronological history; trend() vs last two).
+if (hist) {
+  const all = readHistory(target);
+  const dt = trend(all, { report });
+  process.stdout.write('\n## History (' + dt.count + ' run(s))\n');
+  if (dt.count === 0) process.stdout.write('- no history yet\n');
+  else {
+    process.stdout.write('- current: ' + dt.to.level + ' / ' + dt.to.overall + ' @ ' + dt.to.date + '\n');
+    process.stdout.write('- overall delta vs prev: ' + (dt.overallDelta === null ? 'n/a' : (dt.overallDelta >= 0 ? '+' : '') + dt.overallDelta) + '\n');
+    if (dt.levelDelta && dt.levelDelta !== dt.to.level) process.stdout.write('- level: ' + dt.levelDelta + '\n');
+  }
 }
 
 // --fix: draft remediation for high-priority failed checks (dry-run unless --apply).

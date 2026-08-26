@@ -27,10 +27,11 @@
 - [x] --fix drafts remediation for high-priority failed checks (src/fix.ts; dry-run into .agent-readiness/fix/, --apply to write).
 - Verify: /readiness-report written a fresh L0/22.2 report via RPC (report.md/json at 10:27); readiness_check tool called by model in a live RPC session (SAW_READINESS_TOOL=yes, agent_end cleanly); --fix applied to a repo copy raised overall 20.2->37 (P1 0->60, P4 0->40, P8 0->20) while staying L0 (Mandatory P2 gate holds); --strict exit 1 confirmed; 11/11 unit tests pass. Next: M4 (history) + M4.5 (validation smoke).
 
-## M4 - History + evaluation
-- [ ] .agent-readiness/history.json per repo; trend compare.
-- [ ] Optional HTML/README badge.
-- Verify: two runs produce diffable history; .agent-readiness git-ignored.
+## M4 - History + evaluation - DONE
+- [x] .agent-readiness/history.json per repo; append-only log (src/history.ts).
+- [x] Trend compare (readHistory + trend) with overall/level/per-pillar deltas.
+- [x] --history CLI flag; --badge inline markdown badge (src/badge.ts).
+- Verify: two-run demo showed diffable history (tmp: 13.5 -> 18.8, delta +5.3); real repo history seeds L0/26.3; .agent-readiness git-ignored; history + badge unit tests pass. writeReport appends history automatically.
 
 ## M4.5 - Validation harness & hypothesis gates
 - [ ] Stand up ./validation/ smoke corpus (>=3 calibrated repos low/med/high).

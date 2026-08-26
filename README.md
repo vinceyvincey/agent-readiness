@@ -14,7 +14,24 @@ Built after researching Factory.ai's *Agent Readiness* model and the open-source
 - `.pi/extensions/agent-readiness/` - the extension (commands + tools)
 
 ## Status
-Research + design committed. **M1 done + verified** (skill scaffolding); **M2 done + verified** (deterministic engine); **M3 done + verified** (extension surface + --fix + CI gate). This repo currently scores **L0 / 22.2** (L0 is correct: the Mandatory P2 testing gate still fails).
+Research + design committed. **M1-M4 done + verified** (skill, deterministic engine, extension surface + --fix + CI gate, history + trend). This repo currently scores **L0 / 26.3** (L0 is correct: the Mandatory P2 testing gate still fails).
+
+### Engine (M2/M3/M4)
+- src/checks.ts - 10-pillar D-check batteries
+- src/engine.ts - runReadiness, 80% N-1 gating + Mandatory P2/P6, report.md/json, config_hash, auto history append
+- src/cli.ts - node --experimental-strip-types src/cli.ts <repo> [--json|--strict|--fix|--apply|--history|--badge]
+- src/fix.ts - --fix remediation drafts (dry-run into .agent-readiness/fix/)
+- src/history.ts - append-only per-repo score history + trend deltas
+- src/badge.ts - inline markdown readiness badge
+- test/ - engine + history unit tests (both ALL PASS)
+
+### Extension (M3)
+- .pi/extensions/agent-readiness/index.ts - readiness_check tool + /readiness-report + /readiness-fix
+
+### Verified results
+- Engine on this repo: L0 / 26.3 (P2=16.7 mandatory gate holds - correct)
+- History: append-only .agent-readiness/history.json; two-run demo delta +5.3; --history + --badge work
+- 11 engine + history tests pass; --json valid; --strict exit 1 on mandatory gate fail
 
 ### Engine (M2/M3)
 - src/checks.ts - 10-pillar D-check batteries
