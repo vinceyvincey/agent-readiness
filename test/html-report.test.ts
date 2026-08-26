@@ -100,5 +100,24 @@ const zeroHtml = renderHtml(report, { history: [samePrev] });
 eq('zero delta rendered as ±0', zeroHtml.includes('±0') || zeroHtml.includes('\\u00b10'), true);
 eq('svg lock icon present (no emoji)', m18.includes('lockicon') && !m18.includes('🔒'), true);
 
+
+// M20 dashboard redesign: visible, self-contained charts and actionable criterion details.
+const inlineScripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+let emittedScriptParses = true;
+try { new Function(inlineScripts[inlineScripts.length - 1][1]); } catch { emittedScriptParses = false; }
+eq('emitted dashboard script parses', emittedScriptParses, true);
+eq('dark theme selector present', html.includes(':root[data-theme="dark"]'), true);
+eq('radar chart rendered', html.includes('class="radar-chart"'), true);
+eq('history chart rendered on baseline', html.includes('class="trend-chart"'), true);
+eq('criterion detail dialog present', html.includes('id="criterion-dialog"'), true);
+eq('criterion prompt copy action present', html.includes('id="copy-prompt"'), true);
+eq('global remediation copy action present', html.includes('id="copy-all"'), true);
+eq('criterion rows are keyboard accessible', html.includes('class="criterion-row" tabindex="0"'), true);
+const m20view = JSON.parse(html.match(/window\.__DATA__ = (\{.*\});<\/script>/s)![1]);
+eq('all findings include rationale', m20view.findings.every((f: any) => typeof f.rationale === 'string' && f.rationale.length > 20), true);
+eq('all findings include descriptions', m20view.findings.every((f: any) => typeof f.description === 'string' && f.description.length > 20), true);
+eq('all findings include evaluation guidance', m20view.findings.every((f: any) => typeof f.evaluation === 'string' && f.evaluation.length > 10), true);
+eq('all findings include agent prompts', m20view.findings.every((f: any) => f.prompt.includes(`Remediate agent-readiness criterion ${f.id}`)), true);
+
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);

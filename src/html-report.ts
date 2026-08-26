@@ -1,6 +1,5 @@
-// M17: visual HTML report renderer — self-contained, offline, Droid-inspired.
-// Single file: inline CSS + embedded JSON data + ~100 lines of vanilla JS.
-// Light-first theme; dark via prefers-color-scheme AND html[data-theme] overrides.
+// Self-contained visual HTML report renderer.
+// The report is intentionally dependency-free so it remains useful from file:// and in CI artifacts.
 import type { ReadinessReport } from './engine.ts';
 import type { HistoryEntry } from './history.ts';
 import { LEVEL_GATES, MANDATORY, GATE_PCT } from './engine.ts';
@@ -9,16 +8,7 @@ import { getCriterionByPiId } from './criteria-registry.ts';
 const LEVEL_NAMES: Record<string, string> = {
   L0: 'Unknown', L1: 'Functional', L2: 'Documented', L3: 'Standardized', L4: 'Optimized', L5: 'Autonomous',
 };
-const LEVEL_DESC: Record<string, string> = {
-  L0: 'Barely parses — not yet assessed.',
-  L1: 'Code runs; manual setup; no automated validation.',
-  L2: 'Docs and process exist; some automation in place.',
-  L3: 'Processes defined, documented, enforced via automation.',
-  L4: 'Fast feedback loops; data-driven, continuous improvement.',
-  L5: 'Self-improving systems with sophisticated orchestration.',
-};
 
-// Fallback display names for pi checks with no Droid-criterion mapping (M18 glitch #1).
 const CHECK_NAMES: Record<string, string> = {
   'P0.2': 'Run/usage section in README', 'P0.4': 'Changelog or version history', 'P0.5': 'Examples directory',
   'P0.6': 'H1 title in README', 'P1.2': 'Enforceable rules + verified commands in AGENTS.md', 'P1.3': 'Contributing docs',
@@ -31,108 +21,117 @@ const CHECK_NAMES: Record<string, string> = {
   'P8.5': 'Non-GUI run path', 'P9.1': 'Clear entry points', 'P9.2': 'Legible repo shape', 'P9.4': 'Per-module docs',
 };
 
-const esc = (s: unknown): string =>
-  String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-// Pillar display names (P0..P9).
 const PILLAR_NAMES: Record<string, string> = {
   P0: 'Documentation', P1: 'Agent Guidance', P2: 'Testing & Verification', P3: 'Build & Dependencies',
-  P4: 'CI / Automation & Gates', P5: 'Code Quality & Style', P6: 'Security & Secrets',
-  P7: 'Observability & Debuggability', P8: 'Environment & Onboarding', P9: 'Task Discovery & Modularity',
+  P4: 'CI, Automation & Gates', P5: 'Code Quality & Style', P6: 'Security & Secrets',
+  P7: 'Observability & Debugging', P8: 'Environment & Onboarding', P9: 'Task Discovery & Modularity',
 };
 
-const scoreColor = (pct: number): string => (pct >= 70 ? 'var(--ok)' : pct >= 40 ? 'var(--warn)' : 'var(--bad)');
+const PILLAR_RATIONALE: Record<string, string> = {
+  P0: 'Agents need a reliable map of the product, its interfaces, and the commands that make it run.',
+  P1: 'Explicit repository guidance keeps autonomous changes aligned with local conventions and constraints.',
+  P2: 'Fast, trustworthy verification lets an agent detect mistakes before a human has to review them.',
+  P3: 'Reproducible builds and dependencies turn setup from guesswork into a deterministic feedback loop.',
+  P4: 'Automated gates provide an independent safety net for every agent-authored change.',
+  P5: 'Consistent, bounded code is easier for an agent to understand, edit, and validate safely.',
+  P6: 'Security controls reduce the blast radius of autonomous access and prevent accidental data exposure.',
+  P7: 'Useful runtime signals let agents move from a symptom to a grounded diagnosis.',
+  P8: 'A repeatable environment minimizes onboarding time and machine-specific failures.',
+  P9: 'Clear boundaries and discoverable work help agents make focused changes with fewer unintended effects.',
+};
 
-// SVG donut for the overall score.
-function donut(pct: number, label: string, sub: string): string {
-  const r = 54, c = 2 * Math.PI * r;
-  const filled = (Math.min(100, Math.max(0, pct)) / 100) * c;
-  const color = scoreColor(pct);
-  return `<svg class="donut" viewBox="0 0 140 140" role="img" aria-label="Overall ${esc(label)}">
-<circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--track)" stroke-width="12"/>
-<circle cx="70" cy="70" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round"
-  stroke-dasharray="${filled.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 70 70)"/>
-<text x="70" y="66" text-anchor="middle" class="donut-num">${esc(label)}</text>
-<text x="70" y="88" text-anchor="middle" class="donut-sub">${esc(sub)}</text>
-</svg>`;
-}
+const esc = (s: unknown): string => String(s ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-// SVG sparkline for history trend.
-function sparkline(values: number[], w = 220, h = 48): string {
-  if (values.length === 0) return '';
-  const min = Math.min(...values, 0), max = Math.max(...values, 100);
-  const range = max - min || 1;
-  const pts = values.map((v, i) => {
-    const x = values.length === 1 ? w / 2 : (i / (values.length - 1)) * (w - 8) + 4;
-    const y = h - 6 - ((v - min) / range) * (h - 12);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const last = pts[pts.length - 1].split(',');
-  return `<svg class="spark" viewBox="0 0 ${w} ${h}" role="img" aria-label="score history">
-<polyline points="${pts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
-<circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="var(--accent)"/>
-</svg>`;
-}
-
-// Level-ladder math mirroring resolveLevel(): a level is unlocked when all
-// previous-level gates (cumulative supersets) + mandatory pillars pass the 80% gate.
 function levelStates(pillars: Record<string, { pct: number }>): Array<{ lvl: string; unlocked: boolean; pct: number }> {
-  const gatePct = (pillars: Record<string, { pct: number }>, ids: string[]) =>
-    ids.reduce((a, id) => a + (pillars[id]?.pct ?? 0), 0) / (ids.length || 1);
   const mandatoryOk = MANDATORY.every((m) => (pillars[m]?.pct ?? 0) >= GATE_PCT * 100);
-  const out: Array<{ lvl: string; unlocked: boolean; pct: number }> = [];
-  for (const lvl of ['L1', 'L2', 'L3', 'L4', 'L5']) {
+  return ['L1', 'L2', 'L3', 'L4', 'L5'].map((lvl) => {
     const req = LEVEL_GATES[lvl];
-    const pct = Math.round(gatePct(pillars, req));
-    const unlocked = mandatoryOk && req.every((id) => (pillars[id]?.pct ?? 0) >= GATE_PCT * 100);
-    out.push({ lvl, unlocked, pct });
-  }
-  return out;
+    const pct = Math.round(req.reduce((sum, id) => sum + (pillars[id]?.pct ?? 0), 0) / (req.length || 1));
+    return { lvl, pct, unlocked: mandatoryOk && req.every((id) => (pillars[id]?.pct ?? 0) >= GATE_PCT * 100) };
+  });
 }
 
-// Trimmed serializable view of the report for __DATA__.
+interface FindingView {
+  id: string; pillar: string; pass: boolean; skipped: boolean; severity: string; difficulty: string;
+  evidence: string; app?: string; name: string; droidLevel: number | null; scope: string;
+  rationale: string; description: string; evaluation: string; action: string; prompt: string;
+}
+
 interface ReportView {
   level: string; levelName: string; overall: number; droidPassRate: number; droidScoring: boolean;
   repo: { path: string; language: string };
   run: { date: string; model: string; strict: boolean; commitHash: string; branch: string; hasLocalChanges: boolean; hasNonRemoteCommits: boolean };
   rubric_version: string; config_hash: string;
-  pillars: Record<string, { name: string; passed: number; total: number; pct: number; perApp?: Record<string, { passed: number; total: number }> }>;
+  pillars: Record<string, { name: string; rationale: string; passed: number; total: number; pct: number; perApp?: Record<string, { passed: number; total: number }> }>;
   apps: Record<string, { name: string; type: string; description: string }>;
   punchlist: Array<{ pillar: string; id: string; severity: string; difficulty: string; action: string; evidence: string }>;
-  findings: Array<{ id: string; pillar: string; pass: boolean; skipped: boolean; severity: string; difficulty: string; evidence: string; app?: string; name: string; droidLevel: number | null; scope: string }>;
+  findings: FindingView[];
   history: Array<{ date: string; level: string; overall: number }>;
   levels: Array<{ lvl: string; unlocked: boolean; pct: number }>;
   delta: { overall: number | null; level: string | null; perPillar: Record<string, number> } | null;
 }
 
+function remediationPrompt(repoPath: string, finding: Omit<FindingView, 'prompt'>): string {
+  return [
+    `You are working in ${repoPath}.`,
+    '',
+    `Remediate agent-readiness criterion ${finding.id}: ${finding.name}.`,
+    `Pillar: ${finding.pillar} — ${PILLAR_NAMES[finding.pillar] || finding.pillar}`,
+    `Priority: ${finding.severity}; expected difficulty: ${finding.difficulty}.`,
+    '',
+    'Why this matters:',
+    finding.rationale,
+    '',
+    'Criterion standard:',
+    finding.description,
+    '',
+    'Current evidence:',
+    finding.evidence || 'No evidence was recorded.',
+    '',
+    'Required outcome:',
+    finding.action,
+    '',
+    'Instructions:',
+    '1. Inspect the existing implementation and verify the finding before editing.',
+    '2. Implement the smallest complete fix that fits this repository and its conventions.',
+    '3. Run the most targeted behavioral check that proves the criterion now passes.',
+    '4. Summarize changed files, commands run, and any remaining limitations.',
+    '5. Re-run agent-readiness and report the score delta.',
+  ].join('\n');
+}
+
 function buildView(report: ReadinessReport, history: HistoryEntry[]): ReportView {
-  const prev = history.length > 0 ? history[history.length - 1] : null;
-  const findings = report.findings.map((f) => {
-    const crit = getCriterionByPiId(f.id);
-    return {
+  const prev = history.length ? history[history.length - 1] : null;
+  const findings: FindingView[] = report.findings.map((f) => {
+    const criterion = getCriterionByPiId(f.id);
+    const punch = report.punchlist.find((p) => p.id === f.id);
+    const base: Omit<FindingView, 'prompt'> = {
       id: f.id, pillar: f.pillar, pass: !!f.pass, skipped: !!f.skipped,
-      severity: f.severity, difficulty: f.difficulty || 'intermediate',
-      evidence: f.evidence, app: f.app,
-      name: crit ? crit.name : (CHECK_NAMES[f.id] || f.id),
-      droidLevel: crit ? crit.level : null,
-      scope: crit ? crit.scope : 'repo',
+      severity: f.severity, difficulty: f.difficulty || 'intermediate', evidence: f.evidence, app: f.app,
+      name: criterion?.name || CHECK_NAMES[f.id] || f.id,
+      droidLevel: criterion?.level ?? null, scope: criterion?.scope || 'repo',
+      rationale: PILLAR_RATIONALE[f.pillar] || 'This criterion improves the reliability of autonomous changes.',
+      description: criterion?.description || `This check is part of ${PILLAR_NAMES[f.pillar] || f.pillar} and measures whether the repository gives an agent enough reliable evidence to work safely.`,
+      evaluation: criterion?.evaluation || `Pass when repository evidence satisfies ${CHECK_NAMES[f.id] || f.id}.`,
+      action: punch?.action || (f.pass ? 'No remediation is required; preserve this capability.' : `Address the missing capability reported by ${f.id}: ${f.evidence}.`),
     };
+    return { ...base, prompt: remediationPrompt(report.repo.path, base) };
   });
   const pillars: ReportView['pillars'] = {};
-  for (const [k, v] of Object.entries(report.pillars)) {
-    pillars[k] = { name: PILLAR_NAMES[k] || k, passed: v.passed, total: v.total, pct: v.pct, perApp: v.perApp };
+  for (const [id, score] of Object.entries(report.pillars)) {
+    pillars[id] = { name: PILLAR_NAMES[id] || id, rationale: PILLAR_RATIONALE[id] || '', ...score };
   }
-  const delta = prev
-    ? {
-        overall: Math.round((report.overall - prev.overall) * 10) / 10,
-        level: prev.level === report.level ? report.level : `${prev.level} → ${report.level}`,
-        perPillar: Object.fromEntries(
-          Object.entries(report.pillars).map(([k, v]) => [k, Math.round((v.pct - (prev.perPillar[k] ?? v.pct)) * 10) / 10]),
-        ),
-      }
-    : null;
+  const delta = prev ? {
+    overall: Math.round((report.overall - prev.overall) * 10) / 10,
+    level: prev.level === report.level ? report.level : `${prev.level} → ${report.level}`,
+    perPillar: Object.fromEntries(Object.entries(report.pillars).map(([id, score]) =>
+      [id, Math.round((score.pct - (prev.perPillar[id] ?? score.pct)) * 10) / 10])),
+  } : null;
   return {
-    level: report.level, levelName: LEVEL_NAMES[report.level] || report.level, overall: report.overall, droidPassRate: report.droidPassRate, droidScoring: report.droidScoring,
+    level: report.level, levelName: LEVEL_NAMES[report.level] || report.level,
+    overall: report.overall, droidPassRate: report.droidPassRate, droidScoring: report.droidScoring,
     repo: report.repo, run: report.run, rubric_version: report.rubric_version, config_hash: report.config_hash,
     pillars, apps: report.apps, punchlist: report.punchlist, findings,
     history: history.map((h) => ({ date: h.date, level: h.level, overall: h.overall })),
@@ -140,393 +139,153 @@ function buildView(report: ReadinessReport, history: HistoryEntry[]): ReportView
   };
 }
 
+function radarChart(pillars: ReportView['pillars']): string {
+  const entries = Object.entries(pillars);
+  const cx = 260, cy = 190, radius = 130;
+  const point = (i: number, value: number) => {
+    const angle = -Math.PI / 2 + i * Math.PI * 2 / entries.length;
+    return `${(cx + Math.cos(angle) * radius * value).toFixed(1)},${(cy + Math.sin(angle) * radius * value).toFixed(1)}`;
+  };
+  const rings = [0.25, 0.5, 0.75, 1].map((r) =>
+    `<polygon points="${entries.map((_, i) => point(i, r)).join(' ')}" class="radar-ring"/>`).join('');
+  const axes = entries.map((_, i) => `<line x1="${cx}" y1="${cy}" x2="${point(i, 1).split(',')[0]}" y2="${point(i, 1).split(',')[1]}" class="radar-axis"/>`).join('');
+  const area = entries.map(([, p], i) => point(i, p.pct / 100)).join(' ');
+  const labels = entries.map(([id, p], i) => {
+    const angle = -Math.PI / 2 + i * Math.PI * 2 / entries.length;
+    const x = cx + Math.cos(angle) * (radius + 32);
+    const y = cy + Math.sin(angle) * (radius + 24);
+    const anchor = Math.cos(angle) > 0.25 ? 'start' : Math.cos(angle) < -0.25 ? 'end' : 'middle';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="radar-label">${esc(id)} <tspan>${Math.round(p.pct)}%</tspan></text>`;
+  }).join('');
+  return `<svg class="radar-chart" viewBox="0 0 520 390" role="img" aria-label="Pass rate by readiness pillar">${rings}${axes}<polygon points="${area}" class="radar-area"/>${entries.map(([, p], i) => `<circle cx="${point(i, p.pct / 100).split(',')[0]}" cy="${point(i, p.pct / 100).split(',')[1]}" r="3.5" class="radar-point"/>`).join('')}${labels}</svg>`;
+}
+
+function trendChart(view: ReportView): string {
+  const values = [...view.history.map((h) => ({ date: h.date, value: h.overall })), { date: view.run.date, value: view.overall }];
+  const w = 760, h = 270, left = 48, right = 18, top = 18, bottom = 38;
+  const x = (i: number) => values.length === 1 ? (left + w - right) / 2 : left + i * (w - left - right) / (values.length - 1);
+  const y = (v: number) => top + (100 - v) * (h - top - bottom) / 100;
+  const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v.value).toFixed(1)}`).join(' ');
+  const grid = [0, 25, 50, 75, 100].map((v) => `<line x1="${left}" y1="${y(v)}" x2="${w-right}" y2="${y(v)}" class="trend-grid"/><text x="${left-10}" y="${y(v)+4}" text-anchor="end" class="trend-label">${v}</text>`).join('');
+  const dates = values.length === 1
+    ? `<text x="${x(0)}" y="${h-10}" text-anchor="middle" class="trend-label">${esc(values[0].date.slice(0, 10))}</text>`
+    : values.map((v, i) => (i === 0 || i === values.length - 1 || values.length < 6) ? `<text x="${x(i)}" y="${h-10}" text-anchor="${i === 0 ? 'start' : i === values.length - 1 ? 'end' : 'middle'}" class="trend-label">${esc(v.date.slice(5, 10))}</text>` : '').join('');
+  const baseline = values.length === 1 ? `<line x1="${left}" y1="${y(values[0].value)}" x2="${w-right}" y2="${y(values[0].value)}" class="trend-baseline"/>` : '';
+  return `<svg class="trend-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Overall readiness score over time">${grid}${baseline}<polyline points="${points}" class="trend-line"/>${values.map((v, i) => `<circle cx="${x(i)}" cy="${y(v.value)}" r="5" class="trend-point"><title>${esc(v.date)}: ${v.value}</title></circle>`).join('')}${dates}</svg>`;
+}
+
 export function renderHtml(report: ReadinessReport, opts: { history?: HistoryEntry[] } = {}): string {
   const view = buildView(report, opts.history || []);
   const data = JSON.stringify(view).replace(/</g, '\\u003c');
   const repoName = report.repo.path.split('/').pop() || report.repo.path;
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Readiness — ${esc(repoName)}</title>
 <style>
-:root {
-  --bg: #fafafa; --card: #ffffff; --ink: #16181d; --muted: #6b7280; --line: #e8e8ea;
-  --accent: #e85400; --accent-soft: #fff3eb; --accent-2: #005a94; --accent-2-soft: #eaf3f9;
-  --ok: #149348; --ok-soft: #edfaf1; --warn: #b45309; --warn-soft: #fdf6e7;
-  --bad: #cc2929; --bad-soft: #fdeeed; --skip: #8a8f98; --skip-soft: #f2f3f5;
-  --track: #e8e8ea; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color-scheme: light;
+:root, :root[data-theme="dark"] {
+  --bg:#08090a; --surface:#101113; --surface-2:#15171a; --surface-3:#1b1d21; --ink:#f2f3f5; --muted:#989ba3;
+  --line:#292c31; --line-strong:#3a3e45; --accent:#ff6b2c; --accent-2:#f5ae3d; --accent-soft:#2b170e;
+  --ok:#48c77b; --ok-soft:#10251a; --warn:#f5ae3d; --warn-soft:#2b210e; --bad:#f0645a; --bad-soft:#2b1313;
+  --skip:#858994; --skip-soft:#202227; --track:#202227; --shadow:0 24px 80px rgba(0,0,0,.35);
+  --sans:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace; color-scheme:dark;
 }
-:root[data-theme="dark"] {
-  --bg: #000000; --card: #101012; --ink: #ececee; --muted: #8b8b93; --line: #232326;
-  --accent: #ff5a00; --accent-soft: #1c1208; --accent-2: #3d9ad6; --accent-2-soft: #0a1620;
-  --ok: #2fbf5f; --ok-soft: #07190d; --warn: #e79a3c; --warn-soft: #1f1505;
-  --bad: #f25555; --bad-soft: #200a0a; --skip: #6a6a72; --skip-soft: #16161a;
-  --track: #232326; color-scheme: dark;
+:root[data-theme="light"] {
+  --bg:#f4f5f6; --surface:#fff; --surface-2:#f8f8f9; --surface-3:#f0f1f3; --ink:#15171a; --muted:#686c74;
+  --line:#dddfe3; --line-strong:#c9ccd2; --accent:#e65318; --accent-2:#b66c00; --accent-soft:#fff0e8;
+  --ok:#167a43; --ok-soft:#e9f7ef; --warn:#9a6305; --warn-soft:#fbf2dc; --bad:#c83932; --bad-soft:#fcebea;
+  --skip:#737780; --skip-soft:#eef0f2; --track:#e4e6e9; --shadow:0 20px 60px rgba(20,25,30,.12); color-scheme:light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #000000; --card: #101012; --ink: #ececee; --muted: #8b8b93; --line: #232326;
-    --accent: #ff5a00; --accent-soft: #1c1208; --accent-2: #3d9ad6; --accent-2-soft: #0a1620;
-    --ok: #2fbf5f; --ok-soft: #07190d; --warn: #e79a3c; --warn-soft: #1f1505;
-    --bad: #f25555; --bad-soft: #200a0a; --skip: #6a6a72; --skip-soft: #16161a;
-    --track: #232326; color-scheme: dark;
-  }
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-.wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px 64px; }
-nav { position: sticky; top: 0; z-index: 10; background: var(--card); border-bottom: 1px solid var(--line); }
-nav .inner { max-width: 1060px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-nav .brand { font-weight: 700; font-size: 14px; }
-nav .brand .dot { color: var(--accent); }
-nav .level-chip.chip.level { font-variant-numeric: tabular-nums; }
-nav a { color: var(--muted); text-decoration: none; font-size: 13px; }
-nav a:hover { color: var(--ink); }
-nav .level-chip { margin-left: auto; }
-.chip { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: var(--card); }
-.chip.level { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-.chip.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
-.chip.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
-.chip.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
-.chip.skip { background: var(--skip-soft); color: var(--skip); border-color: transparent; }
-section { margin-top: 32px; }
-h2 { font-size: 19px; margin: 0 0 4px; }
-h2 .sub { display: block; font-size: 13px; font-weight: 400; color: var(--muted); margin-top: 2px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-.hero { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
-.hero .donut { width: 150px; height: 150px; flex: none; }
-.donut-num { font-size: 30px; font-weight: 700; fill: var(--ink); }
-.donut-sub { font-size: 12px; fill: var(--muted); }
-.donut-sub2 { font-size: 10px; fill: var(--accent); font-weight: 600; letter-spacing: 0.02em; }
-.hero .facts { display: flex; flex-direction: column; gap: 8px; min-width: 260px; flex: 1; }
-.hero .facts .big { font-size: 22px; font-weight: 700; }
-.hero .facts .lockup { font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: 0.01em; }
-.hero .facts .lockup .sep { color: var(--muted); font-weight: 400; }
-.hero .facts .kv { font-size: 13px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
-.hero .facts .kv b { color: var(--ink); font-weight: 600; }
-.prov { margin-top: 14px; font-size: 12.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); }
-.prov .dirty { color: var(--warn); }
-.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
-.stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-.stat .n { font-size: 24px; font-weight: 700; }
-.stat .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.stat .n .delta-up { color: var(--ok); font-size: 15px; }
-.stat .n .delta-down { color: var(--bad); font-size: 15px; }
-.ladder { display: flex; flex-direction: column; gap: 10px; }
-.rung { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: 64px 1fr 220px; gap: 16px; align-items: center; }
-.rung.locked { opacity: 0.62; }
-.rung.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.rung .lvl { font-weight: 700; font-size: 15px; }
-.rung .lvl .nm { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
-.lockicon { width: 12px; height: 12px; vertical-align: -1.5px; color: var(--muted); }
-.rung .desc { font-size: 13px; color: var(--muted); }
-.bar { height: 10px; border-radius: 999px; background: var(--track); overflow: hidden; }
-.bar > i { display: block; height: 100%; border-radius: 999px; }
-.rung .pctline { font-size: 12px; color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between; gap: 8px; }
-.fixgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-.fixcard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
-.fixcard .head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.fixcard .ids { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-.fixcard .action { font-size: 14px; }
-.fixcard .evidence { font-family: var(--mono); font-size: 11.5px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
-.fixcard button.copy { align-self: flex-start; margin-top: auto; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 5px 12px; font-size: 12.5px; }
-.fixcard button.copy:hover { border-color: var(--accent); color: var(--accent); }
-.pillargrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-.pillar { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; cursor: pointer; text-align: left; width: 100%; color: inherit; font: inherit; }
-.pillar:hover { border-color: var(--accent); }
-.pillar .pid { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-.pillar .nm { font-weight: 600; margin: 2px 0 8px; font-size: 14px; }
-.pillar .nums { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
-.pillar .apps { margin-top: 8px; font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
-.controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; align-items: center; }
-.controls .chips { display: flex; gap: 6px; }
-.controls button.f { border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; cursor: pointer; }
-.controls button.f.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-.controls input { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 6px 10px; font-size: 13px; min-width: 200px; flex: 1; max-width: 320px; }
-table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 13px; }
-tr.crit { border-top: 1px solid var(--line); cursor: pointer; }
-tr.crit:hover { background: var(--accent-soft); }
-tr.crit td { padding: 7px 12px; }
-td, th { padding: 9px 12px; text-align: left; vertical-align: top; }
-th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); background: var(--card); border-bottom: 1px solid var(--line); }
-td .nm { font-weight: 600; }
-td .cid { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-td .dot { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin-right: 8px; vertical-align: baseline; }
-td .pill { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; border-radius: 5px; padding: 1.5px 7px; }
-td .pill.pass { background: var(--ok-soft); color: var(--ok); }
-td .pill.fail { background: var(--bad-soft); color: var(--bad); }
-td .pill.skip { background: var(--skip-soft); color: var(--skip); }
-td .dot.pass { background: var(--ok); }
-td .dot.fail { background: var(--bad); }
-td .dot.skip { background: var(--skip); }
-tr.why { display: none; }
-tr.why.open { display: table-row; }
-tr.why td { background: var(--bg); color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
-footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; }
-footer .apps li { margin-top: 2px; }
-.spark { width: 220px; height: 48px; }
-.empty { color: var(--muted); font-size: 13px; padding: 18px; text-align: center; background: var(--card); border: 1px dashed var(--line); border-radius: 12px; }
-@media print {
-  nav, .controls, button { display: none !important; }
-  body { background: #fff; }
-  .card, .stat, .rung, .fixcard, .pillar, table { break-inside: avoid; }
-}
+*{box-sizing:border-box} html{scroll-behavior:smooth} body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 var(--sans)}
+button,input{font:inherit} button{color:inherit}.shell{max-width:1480px;margin:auto;padding:0 28px 80px}
+.topbar{position:sticky;top:0;z-index:20;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(16px)}
+.topbar-inner{max-width:1480px;margin:auto;height:62px;padding:0 28px;display:flex;align-items:center;gap:24px}.brand{font:700 13px var(--mono);letter-spacing:.04em}.brand-mark{color:var(--accent)}
+.navlinks{display:flex;gap:20px}.navlinks a{color:var(--muted);text-decoration:none;font-size:12px}.navlinks a:hover{color:var(--ink)}.nav-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
+.icon-btn,.outline-btn,.primary-btn{border:1px solid var(--line);border-radius:7px;background:var(--surface);cursor:pointer;padding:8px 12px}.icon-btn{width:35px;height:35px;padding:7px}.icon-btn:hover,.outline-btn:hover{border-color:var(--accent);color:var(--accent)}.primary-btn{background:var(--accent);border-color:var(--accent);color:#170903;font-weight:700}.primary-btn:hover{filter:brightness(1.08)}
+.level-chip,.tag,.status{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 9px;font:700 10px var(--mono);letter-spacing:.04em;text-transform:uppercase}.level-chip{color:var(--accent-2);background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
+section{margin-top:26px}.eyebrow{color:var(--muted);font:11px var(--mono);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}.section-head{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:12px}.section-head h2{font-size:19px;margin:0}.section-head p{color:var(--muted);margin:3px 0 0;font-size:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}.overview{margin-top:28px;padding:24px}.repo-row{display:flex;align-items:center;gap:14px}.repo-badge{width:48px;height:48px;display:grid;place-items:center;background:linear-gradient(145deg,var(--accent-2),var(--accent));color:#1a0b02;font:800 17px var(--mono);clip-path:polygon(25% 7%,75% 7%,100% 50%,75% 93%,25% 93%,0 50%)}.repo-name{font-size:18px;font-weight:650}.repo-meta{color:var(--muted);font:11px var(--mono);margin-top:2px}.overview-actions{margin-left:auto;display:flex;gap:8px}.score-callout{text-align:center;margin:14px 0 5px}.score-callout strong{font-size:18px}.score-callout span{color:var(--muted);font-size:12px}.segment-wrap{position:relative;padding-top:28px}.segments{display:grid;grid-template-columns:repeat(100,1fr);gap:3px;height:31px}.segment{border-radius:2px;background:var(--track)}.segment.filled{background:linear-gradient(180deg,var(--accent-2),var(--accent))}.segment.current{transform:translateY(-7px);height:38px;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent-2) 30%,transparent)}.score-marker{position:absolute;top:0;transform:translateX(-50%);color:var(--ink);font:700 11px var(--mono);white-space:nowrap}.level-labels{display:grid;grid-template-columns:repeat(5,1fr);margin-top:9px;color:var(--muted);font:11px var(--mono)}.level-labels span{text-align:center}.level-labels .active{color:var(--accent-2)}
+.summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border-top:1px solid var(--line);margin:22px -24px -24px}.summary-stat{background:var(--surface);padding:15px 20px}.summary-stat .value{font:700 21px var(--mono)}.summary-stat .label{color:var(--muted);font-size:11px;margin-top:2px}.delta-up{color:var(--ok)}.delta-down{color:var(--bad)}
+.visual-grid{display:grid;grid-template-columns:minmax(360px,.82fr) minmax(520px,1.45fr);gap:14px}.chart-panel{min-height:390px;padding:18px 20px}.chart-title{font:12px var(--mono);text-transform:uppercase;letter-spacing:.08em}.chart-subtitle{color:var(--muted);font-size:11px;margin-top:3px}.radar-chart,.trend-chart{display:block;width:100%;height:315px;margin-top:8px;overflow:visible}.radar-ring,.radar-axis{fill:none;stroke:var(--line);stroke-width:1}.radar-area{fill:color-mix(in srgb,var(--accent) 25%,transparent);stroke:var(--accent);stroke-width:2}.radar-point,.trend-point{fill:var(--accent-2);stroke:var(--surface);stroke-width:2}.radar-label,.trend-label{fill:var(--muted);font:10px var(--mono)}.radar-label tspan{fill:var(--ink)}.trend-grid{stroke:var(--line);stroke-width:1}.trend-baseline{stroke:var(--accent);stroke-width:1.5;stroke-dasharray:5 5;opacity:.65}.trend-line{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.fix-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.fix-card{padding:16px;display:flex;flex-direction:column;min-height:170px;position:relative;overflow:hidden}.fix-card:before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--bad)}.fix-top{display:flex;align-items:center;gap:7px}.tag{border:1px solid var(--line);color:var(--muted)}.tag.high{color:var(--bad);background:var(--bad-soft);border-color:transparent}.tag.med{color:var(--warn);background:var(--warn-soft);border-color:transparent}.fix-id{margin-left:auto;color:var(--muted);font:11px var(--mono)}.fix-action{margin:14px 0 10px;font-size:14px}.fix-evidence{color:var(--muted);font:11px var(--mono);margin-bottom:14px}.text-btn{border:0;background:none;color:var(--accent);cursor:pointer;padding:0;text-align:left;font:700 11px var(--mono);margin-top:auto}.text-btn:hover{text-decoration:underline}
+.pillar-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.pillar-card{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:14px;text-align:left;cursor:pointer;min-height:132px;display:flex;flex-direction:column}.pillar-card:hover{border-color:var(--accent);transform:translateY(-1px)}.pillar-id{color:var(--accent-2);font:11px var(--mono)}.pillar-name{font-weight:650;margin:4px 0 16px}.pillar-score{font:700 22px var(--mono);margin-top:auto}.pillar-score span{color:var(--muted);font-size:11px;font-weight:400}.mini-bar{height:5px;background:var(--track);border-radius:9px;overflow:hidden;margin-top:8px}.mini-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:9px}
+.levels{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.level-card{padding:13px;border-top:2px solid var(--line-strong)}.level-card.unlocked{border-top-color:var(--ok)}.level-card.current{border-color:var(--accent);background:var(--accent-soft)}.level-name{font-weight:700}.level-gate{color:var(--muted);font:10px var(--mono);margin-top:5px}.lockicon{width:12px;height:12px;vertical-align:-2px}
+.criteria-panel{overflow:hidden}.controls{display:flex;gap:8px;padding:14px;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap}.filter{border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--muted);padding:5px 11px;font-size:11px;cursor:pointer}.filter.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}.search{margin-left:auto;min-width:280px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);color:var(--ink);padding:8px 10px;outline:none}.search:focus{border-color:var(--accent)}
+table{border-collapse:collapse;width:100%}th{color:var(--muted);font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle}.criterion-row{cursor:pointer}.criterion-row:hover{background:var(--surface-2)}.criterion-name{font-weight:600}.criterion-id{color:var(--muted);font:10px var(--mono);margin-top:2px}.status:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}.status.pass{color:var(--ok);background:var(--ok-soft)}.status.fail{color:var(--bad);background:var(--bad-soft)}.status.skip{color:var(--skip);background:var(--skip-soft)}.difficulty{color:var(--muted);font:11px var(--mono)}.view-link{color:var(--accent);font:11px var(--mono)}.empty{padding:40px;color:var(--muted);text-align:center}
+dialog{width:min(760px,calc(100vw - 32px));max-height:88vh;padding:0;border:1px solid var(--line-strong);border-radius:11px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}dialog::backdrop{background:rgba(0,0,0,.72);backdrop-filter:blur(3px)}.dialog-head{position:sticky;top:0;z-index:2;display:flex;gap:16px;padding:20px 22px;border-bottom:1px solid var(--line);background:var(--surface)}.dialog-title{font-size:19px;font-weight:700}.dialog-sub{color:var(--muted);font:11px var(--mono);margin-top:3px}.dialog-close{margin-left:auto;border:1px solid var(--line);background:var(--surface-2);border-radius:7px;width:34px;height:34px;cursor:pointer}.dialog-body{padding:20px 22px;overflow:auto}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.detail-block{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:13px}.detail-block.wide{grid-column:1/-1}.detail-label{color:var(--accent-2);font:10px var(--mono);letter-spacing:.09em;text-transform:uppercase;margin-bottom:6px}.detail-copy{color:var(--muted);font-size:13px;white-space:pre-wrap;word-break:break-word}.prompt-wrap{margin-top:18px}.prompt-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.prompt{max-height:240px;overflow:auto;margin:0;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:14px;color:var(--ink);font:11px/1.55 var(--mono);white-space:pre-wrap}.copy-feedback{color:var(--ok);font-size:11px;margin-left:8px}
+.provenance{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font:10px/1.8 var(--mono)}
+@media(max-width:1050px){.visual-grid{grid-template-columns:1fr}.fix-grid{grid-template-columns:1fr 1fr}.pillar-grid{grid-template-columns:repeat(3,1fr)}.summary-grid{grid-template-columns:1fr 1fr}.levels{grid-template-columns:1fr}.navlinks{display:none}}
+@media(max-width:680px){.shell,.topbar-inner{padding-left:14px;padding-right:14px}.overview{padding:16px}.overview-actions{width:100%;margin:8px 0 0}.segments{gap:1px}.summary-grid{margin:18px -16px -16px}.fix-grid,.pillar-grid,.detail-grid{grid-template-columns:1fr}.visual-grid{grid-template-columns:minmax(0,1fr)}.chart-panel{min-height:320px}.radar-chart,.trend-chart{height:auto}.search{min-width:100%;margin-left:0}.criteria-panel{overflow-x:auto}.criterion-row td:nth-child(3),.criterion-row td:nth-child(4),th:nth-child(3),th:nth-child(4){display:none}.score-marker{display:none}}
+@media print{.topbar,.overview-actions,.controls,.text-btn,.view-link,dialog{display:none!important}.panel,.fix-card,.pillar-card{break-inside:avoid}body{background:#fff}.shell{max-width:none}}
 </style>
 </head>
 <body>
-<nav><div class="inner">
-  <span class="brand">agent<span class="dot">-</span>readiness</span>
-  <a href="#overview">Overview</a>
-  <a href="#changes">Changes</a>
-  <a href="#levels">Levels</a>
-  <a href="#fix">Fix next</a>
-  <a href="#pillars">Pillars</a>
-  <a href="#criteria">Criteria</a>
-  <span class="chip level" id="nav-level"></span>
-</div></nav>
-<div class="wrap">
-
-<section id="overview"><div class="card hero">
-  <div id="hero-donut"></div>
-  <div class="facts">
-    <div class="big" id="hero-repo"></div>
-    <div class="lockup" id="hero-lockup"></div>
-    <div class="kv" id="hero-kv"></div>
-  </div>
-</div>
-<div class="prov" id="prov"></div>
-<div class="stat-row" id="stats" style="margin-top:14px"></div>
+<header class="topbar"><div class="topbar-inner"><div class="brand">agent<span class="brand-mark">/</span>readiness</div><nav class="navlinks"><a href="#overview">Overview</a><a href="#actions">Actions</a><a href="#pillars">Pillars</a><a href="#criteria">Criteria</a></nav><div class="nav-actions"><span class="level-chip" id="nav-level"></span><button class="icon-btn" id="theme" aria-label="Toggle theme" title="Toggle theme"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.2v2M10 15.8v2M2.2 10h2M15.8 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M15.5 4.5l-1.4 1.4M5.9 14.1l-1.4 1.4" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="3.5" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div></header>
+<main class="shell">
+<section id="overview" class="panel overview">
+  <div class="repo-row"><div class="repo-badge">${esc(report.level.replace('L','') || '0')}</div><div><div class="repo-name">${esc(repoName)}</div><div class="repo-meta">${esc(report.repo.language)} · ${esc(report.run.branch || 'local')} · updated ${esc(report.run.date.slice(0,16).replace('T',' '))}</div></div><div class="overview-actions"><button class="outline-btn" id="copy-all">Copy remediation prompt</button><button class="primary-btn" id="open-first">Review top blocker</button></div></div>
+  <div class="score-callout"><strong>${report.droidPassRate.toFixed(1)}%</strong> <span>of mapped criteria pass</span></div>
+  <div class="segment-wrap"><div class="score-marker" id="score-marker">${report.droidPassRate.toFixed(1)}%</div><div class="segments" id="segments" aria-label="${report.droidPassRate.toFixed(1)} percent criteria passing"></div><div class="level-labels"><span>Level 1</span><span>Level 2</span><span>Level 3</span><span>Level 4</span><span>Level 5</span></div></div>
+  <div class="summary-grid" id="summary"></div>
 </section>
-
-<section id="changes"><h2>What changed<span class="sub" id="changes-sub"></span></h2><div id="changes-body"></div></section>
-
-<section id="levels"><h2>Level ladder<span class="sub">A level unlocks when all its gate pillars reach 80% (P2 Testing and P6 Security are mandatory hard gates).</span></h2>
-<div class="ladder" id="ladder"></div></section>
-
-<section id="fix"><h2>Fix next<span class="sub">Top remediation items, severity then difficulty (start with Basic — highest leverage).</span></h2>
-<div class="fixgrid" id="fixgrid"></div></section>
-
-<section id="pillars"><h2>Pillars<span class="sub">Click a pillar to jump to its criteria.</span></h2>
-<div class="pillargrid" id="pillargrid"></div></section>
-
-<section id="criteria"><h2>Criteria<span class="sub">Every check with pass/fail status and expandable evidence. Click a row for rationale.</span></h2>
-<div class="controls">
-  <div class="chips">
-    <button class="f on" data-f="all">All</button>
-    <button class="f" data-f="fail">Failed</button>
-    <button class="f" data-f="pass">Passed</button>
-    <button class="f" data-f="skip">Skipped</button>
-  </div>
-  <input id="q" type="search" placeholder="Filter by name, id, pillar…">
-</div>
-<table id="crit-table">
-<thead><tr><th style="width:76px">Status</th><th>Criterion</th><th style="width:70px">Droid</th><th style="width:80px">Scope</th><th style="width:90px">Difficulty</th></tr></thead>
-<tbody id="crit-body"></tbody>
-</table>
-<div class="empty" id="crit-empty" style="display:none">No criteria match the current filter.</div>
-</section>
-
-<footer id="footer"></footer>
-</div>
-
+<section><div class="visual-grid"><article class="panel chart-panel"><div class="chart-title">Pass rate by pillar</div><div class="chart-subtitle">Coverage balance across all ten readiness capabilities</div>${radarChart(view.pillars)}</article><article class="panel chart-panel"><div class="chart-title">Readiness over time</div><div class="chart-subtitle" id="trend-subtitle"></div>${trendChart(view)}</article></div></section>
+<section id="actions"><div class="section-head"><div><div class="eyebrow">Prioritized work</div><h2>Fix next</h2><p>Highest-leverage failures first. Open any item for evidence and an agent-ready prompt.</p></div></div><div class="fix-grid" id="fix-grid"></div></section>
+<section id="pillars"><div class="section-head"><div><div class="eyebrow">Capability map</div><h2>Readiness pillars</h2><p>Select a pillar to filter its criteria.</p></div></div><div class="pillar-grid" id="pillar-grid"></div></section>
+<section id="levels"><div class="section-head"><div><div class="eyebrow">Maturity model</div><h2>Level gates</h2><p>Levels require every gate pillar to reach 80%; Testing and Security are hard gates.</p></div></div><div class="levels" id="levels-grid"></div></section>
+<section id="criteria"><div class="section-head"><div><div class="eyebrow">Full assessment</div><h2>All criteria</h2><p>Open a criterion to understand why it exists, see evidence, and copy a remediation prompt.</p></div></div></div><div class="panel criteria-panel"><div class="controls"><button class="filter on" data-filter="all">All</button><button class="filter" data-filter="fail">Failed</button><button class="filter" data-filter="pass">Passed</button><button class="filter" data-filter="skip">Skipped</button><input id="search" class="search" type="search" placeholder="Search criterion, id, pillar, or app…"></div><table><thead><tr><th>Status</th><th>Criterion</th><th>Level</th><th>Scope</th><th>Difficulty</th><th></th></tr></thead><tbody id="criteria-body"></tbody></table><div class="empty" id="criteria-empty" hidden>No criteria match this filter.</div></div></section>
+<div class="provenance" id="provenance"></div>
+</main>
+<dialog id="criterion-dialog" aria-labelledby="dialog-title"><div class="dialog-head"><div><div class="dialog-title" id="dialog-title"></div><div class="dialog-sub" id="dialog-sub"></div></div><button class="dialog-close" id="dialog-close" aria-label="Close">&#215;</button></div><div class="dialog-body"><div id="dialog-status"></div><div class="detail-grid" id="dialog-details"></div><div class="prompt-wrap"><div class="prompt-head"><div><div class="detail-label">Agent remediation prompt</div><span class="copy-feedback" id="copy-feedback"></span></div><button class="primary-btn" id="copy-prompt">Copy prompt</button></div><pre class="prompt" id="dialog-prompt"></pre></div></div></dialog>
 <script>window.__DATA__ = ${data};</script>
 <script>
-(function () {
-  'use strict';
-  var D = window.__DATA__;
-  var esc = function (s) {
-    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  };
-  var colorFor = function (p) { return p >= 70 ? 'var(--ok)' : p >= 40 ? 'var(--warn)' : 'var(--bad)'; };
-  var fmtDelta = function (d) { if (d == null) return ''; var t = (d > 0 ? '+' : '') + d.toFixed(1).replace(/\.0$/, ''); return t === '0' ? '±0' : t; };
+(function(){
+'use strict';
+var D=window.__DATA__,filter='all',query='',pillarFilter='',activeIndex=-1;
+var $=function(id){return document.getElementById(id)};
+var escapeHtml=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
+var statusOf=function(f){return f.skipped?'skip':(f.pass?'pass':'fail')};
+var formatDelta=function(n){if(n==null)return '';if(n===0)return '±0';return (n>0?'+':'')+n.toFixed(1).replace(/\\.0$/,'')};
+var copyText=function(text,button,label){var done=function(){if(button){var old=button.textContent;button.textContent=label||'Copied';setTimeout(function(){button.textContent=old},1500)}};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done).catch(function(){fallbackCopy(text);done()})}else{fallbackCopy(text);done()}};
+var fallbackCopy=function(text){var area=document.createElement('textarea');area.value=text;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();try{document.execCommand('copy')}catch(e){}area.remove()};
 
-  // nav + hero
-  var repoName = D.repo.path.split('/').pop() || D.repo.path;
-  document.getElementById('nav-level').textContent = D.level + ' · ' + D.levelName;
-  document.getElementById('hero-donut').innerHTML = [
-    '<svg class="donut" viewBox="0 0 140 140" role="img" aria-label="overall score">',
-    '<circle cx="70" cy="70" r="54" fill="none" stroke="var(--track)" stroke-width="12"/>',
-    '<circle cx="70" cy="70" r="54" fill="none" stroke="' + colorFor(D.overall) + '" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + (Math.min(100, Math.max(0, D.overall)) / 100 * 339.3).toFixed(1) + ' 339.3" transform="rotate(-90 70 70)"/>',
-    '<text x="70" y="62" text-anchor="middle" class="donut-num">' + Math.round(D.overall) + '</text>',
-    '<text x="70" y="82" text-anchor="middle" class="donut-sub">/ 100</text>',
-    '<text x="70" y="98" text-anchor="middle" class="donut-sub2">' + D.level + ' ' + D.levelName + '</text></svg>'
-  ].join('');
-  document.getElementById('hero-repo').textContent = repoName;
-  document.getElementById('hero-lockup').innerHTML =
-    '<span>' + D.level + '</span> <span class="sep">—</span> <span>' + esc(D.levelName) + '</span>';
-  var passed = D.findings.filter(function (f) { return f.pass && !f.skipped; }).length;
-  var failed = D.findings.filter(function (f) { return !f.pass && !f.skipped; }).length;
-  var skipped = D.findings.filter(function (f) { return f.skipped; }).length;
-  document.getElementById('hero-kv').innerHTML =
-    '<b>' + D.level + ' ' + esc(D.levelName) + '</b>' +
-    ' · <b>' + D.droidPassRate.toFixed(1) + '%</b> Droid-compatible pass rate' +
-    ' · <b>' + passed + '/' + (passed + failed) + '</b> checks passing';
-  var prov = [];
-  prov.push(esc(D.repo.language));
-  if (D.run.commitHash) prov.push(esc(D.run.commitHash.slice(0, 8)) + ' (' + esc(D.run.branch) + ')');
-  prov.push(new Date(D.run.date).toISOString().slice(0, 16).replace('T', ' '));
-  prov.push('model ' + esc(D.run.model));
-  prov.push('rubric ' + esc(D.rubric_version));
-  prov.push('config ' + esc(D.config_hash));
-  if (D.run.hasLocalChanges || D.run.hasNonRemoteCommits) prov.push('<span class="dirty">⚠ uncommitted/unpushed changes</span>');
-  document.getElementById('prov').innerHTML = prov.join(' · ');
+$('nav-level').textContent=D.level+' · '+D.levelName;
+var segmentScore=Math.max(0,Math.min(100,D.droidPassRate));
+$('score-marker').style.left=segmentScore+'%';
+$('segments').innerHTML=Array.from({length:100},function(_,i){var filled=i<Math.round(segmentScore);var current=i===Math.max(0,Math.round(segmentScore)-1);return '<span class="segment'+(filled?' filled':'')+(current?' current':'')+'"></span>'}).join('');
+var levelIndex=Math.max(0,Math.min(4,(parseInt(D.level.slice(1),10)||1)-1));document.querySelectorAll('.level-labels span')[levelIndex].classList.add('active');
+var passed=D.findings.filter(function(f){return f.pass&&!f.skipped}).length,failed=D.findings.filter(function(f){return !f.pass&&!f.skipped}).length,skipped=D.findings.filter(function(f){return f.skipped}).length;
+var delta=D.delta&&D.delta.overall!=null?'<span class="'+(D.delta.overall>0?'delta-up':D.delta.overall<0?'delta-down':'')+'"> '+formatDelta(D.delta.overall)+'</span>':'';
+$('summary').innerHTML=[
+  [D.overall.toFixed(1)+delta,'Weighted score / 100'],[passed+'/'+(passed+failed),'Deterministic checks passing'],[String(failed),'Open failures'],[String(skipped),'Skipped as not applicable']
+].map(function(s){return '<div class="summary-stat"><div class="value">'+s[0]+'</div><div class="label">'+s[1]+'</div></div>'}).join('');
+$('trend-subtitle').textContent=D.history.length?D.history.length+' previous run'+(D.history.length===1?'':'s')+' plus current assessment':'Baseline established — future runs will build the trend';
 
-  // stat cards (incl. delta when present)
-  var stats = [
-    { n: D.overall.toFixed(1), l: 'Overall score / 100' },
-    { n: D.droidPassRate.toFixed(1) + '%', l: 'Droid-compatible pass rate' },
-    { n: passed + '/' + (passed + failed), l: 'Deterministic checks passing' },
-    { n: String(D.punchlist.length), l: 'Top punchlist items' }
-  ];
-  var statsEl = document.getElementById('stats');
-  statsEl.innerHTML = stats.map(function (s) {
-    return '<div class="stat"><div class="n">' + esc(s.n) + '</div><div class="l">' + esc(s.l) + '</div></div>';
-  }).join('');
-  if (D.delta && D.delta.overall !== null) {
-    var d = D.delta.overall;
-    var cls = d > 0 ? 'delta-up' : (d < 0 ? 'delta-down' : '');
-    statsEl.firstElementChild.querySelector('.n').innerHTML += ' <span class="' + cls + '">' + fmtDelta(d) + '</span>';
-  }
+var severityClass=function(s){return s==='high'?'high':s==='med'?'med':''};
+var failedFindings=D.findings.filter(function(f){return !f.pass&&!f.skipped});
+var remediationFindings=D.punchlist.map(function(p){return D.findings.find(function(f){return f.id===p.id&&!f.pass&&!f.skipped})}).filter(Boolean);
+$('fix-grid').innerHTML=D.punchlist.length?D.punchlist.slice(0,6).map(function(p){var index=D.findings.findIndex(function(f){return f.id===p.id&&!f.pass});return '<article class="panel fix-card"><div class="fix-top"><span class="tag '+severityClass(p.severity)+'">'+escapeHtml(p.severity)+'</span><span class="tag">'+escapeHtml(p.difficulty)+'</span><span class="fix-id">'+escapeHtml(p.id)+'</span></div><div class="fix-action">'+escapeHtml(p.action)+'</div><div class="fix-evidence">'+escapeHtml(p.evidence)+'</div><button class="text-btn open-detail" data-index="'+index+'">View rationale &amp; agent prompt →</button></article>'}).join(''):'<div class="panel empty">All deterministic criteria pass. Preserve these controls as the repository evolves.</div>';
 
-  // changes section
-  var changesBody = document.getElementById('changes-body');
-  var changesSub = document.getElementById('changes-sub');
-  if (!D.delta) {
-    changesSub.textContent = 'First run — baseline established.';
-    changesBody.innerHTML = '<div class="card">Baseline established. Run agent-readiness again after remediation to see deltas and a score trend here.</div>';
-  } else {
-    changesSub.textContent = 'Compared with previous run (' + D.history[D.history.length - 1].date.slice(0, 10) + ').';
-    var rows = Object.keys(D.delta.perPillar).map(function (k) {
-      var dd = D.delta.perPillar[k];
-      var cls2 = dd > 0 ? 'ok' : (dd < 0 ? 'bad' : 'skip');
-      return '<tr><td><span class="cid">' + esc(k) + '</span> ' + esc((D.pillars[k] && D.pillars[k].name) || k) + '</td>' +
-        '<td style="text-align:right"><span class="chip ' + cls2 + '">' + fmtDelta(dd) + '</span></td></tr>';
-    }).join('');
-    var histVals = D.history.map(function (h) { return h.overall; }).concat([D.overall]);
-    var sparkPts = histVals.map(function (v, i) {
-      var min = Math.min.apply(null, histVals.concat([0])); var max = Math.max.apply(null, histVals.concat([100])); var range = max - min || 1;
-      var x = histVals.length === 1 ? 110 : (i / (histVals.length - 1)) * 212 + 4;
-      var y = 42 - ((v - min) / range) * 36;
-      return x.toFixed(1) + ',' + y.toFixed(1);
-    }).join(' ');
-    changesBody.innerHTML = '<div class="stat-row" style="margin-top:0">' +
-      '<div class="stat"><div class="n">' + esc(D.delta.level) + '</div><div class="l">level</div></div>' +
-      '<div class="stat"><div class="n" style="color:' + (D.delta.overall > 0 ? 'var(--ok)' : D.delta.overall < 0 ? 'var(--bad)' : 'var(--ink)') + '">' + fmtDelta(D.delta.overall) + '</div><div class="l">overall vs previous run</div></div>' +
-      '<div class="stat"><div class="n" style="display:flex;align-items:center;gap:10px"><svg class="spark" viewBox="0 0 220 48"><polyline points="' + sparkPts + '" fill="none" stroke="var(--accent)" stroke-width="2"/></svg></div><div class="l">score history (' + D.history.length + ' run' + (D.history.length === 1 ? '' : 's') + ')</div></div>' +
-      '</div><div class="card" style="margin-top:14px"><table style="max-width:480px"><thead><tr><th>Pillar</th><th style="text-align:right">Δ pct</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-  }
+$('pillar-grid').innerHTML=Object.keys(D.pillars).map(function(id){var p=D.pillars[id];return '<button class="pillar-card" data-pillar="'+escapeHtml(id)+'" title="'+escapeHtml(p.rationale)+'"><div class="pillar-id">'+escapeHtml(id)+'</div><div class="pillar-name">'+escapeHtml(p.name)+'</div><div class="pillar-score">'+p.pct.toFixed(1)+'% <span>'+p.passed+'/'+p.total+'</span></div><div class="mini-bar"><i style="width:'+Math.min(100,p.pct)+'%"></i></div></button>'}).join('');
+$('levels-grid').innerHTML=D.levels.map(function(l){var current=l.lvl===D.level;return '<div class="panel level-card '+(l.unlocked?'unlocked ':'')+(current?'current':'')+'"><div class="level-name">'+escapeHtml(l.lvl)+' · '+escapeHtml(({L1:'Functional',L2:'Documented',L3:'Standardized',L4:'Optimized',L5:'Autonomous'})[l.lvl])+(l.unlocked?'':' <svg class="lockicon" viewBox="0 0 16 16" aria-label="locked"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="currentColor"/><path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>')+'</div><div class="level-gate">'+l.pct+'% gate average · '+(l.unlocked?'unlocked':'locked')+'</div><div class="mini-bar"><i style="width:'+Math.min(100,l.pct)+'%"></i></div></div>'}).join('');
 
-  // level ladder
-  var LN = { L1: 'Functional', L2: 'Documented', L3: 'Standardized', L4: 'Optimized', L5: 'Autonomous' };
-  var LD = { L1: 'Code runs; manual setup; no automated validation.', L2: 'Docs and process exist; some automation.', L3: 'Processes defined and enforced via automation.', L4: 'Fast feedback loops and continuous measurement.', L5: 'Self-improving systems and orchestration.' };
-  var currentNum = parseInt(D.level.slice(1), 10) || 0;
-  document.getElementById('ladder').innerHTML = D.levels.map(function (L) {
-    var n = parseInt(L.lvl.slice(1), 10);
-    var isCurrent = n === currentNum;
-    var cls3 = 'rung' + (L.unlocked ? '' : ' locked') + (isCurrent ? ' current' : '');
-    return '<div class="' + cls3 + '">' +
-      '<div class="lvl">' + esc(L.lvl) + '<span class="nm">' + esc(LN[L.lvl] || '') + (L.unlocked ? '' : ' <svg class="lockicon" viewBox="0 0 16 16" aria-label="locked"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="currentColor"/><path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>') + '</span></div>' +
-      '<div class="desc">' + esc(LD[L.lvl] || '') + (isCurrent ? ' — current level' : '') + '</div>' +
-      '<div><div class="pctline"><span>' + L.pct + '% of gate pillars</span><span>' + (L.unlocked ? 'unlocked' : 'locked') + '</span></div>' +
-      '<div class="bar"><i style="width:' + Math.min(100, L.pct) + '%;background:' + colorFor(L.pct) + '"></i></div></div></div>';
-  }).join('');
-
-  // fix next
-  var sevCls = { high: 'bad', med: 'warn', low: 'skip' };
-  document.getElementById('fixgrid').innerHTML = D.punchlist.length ? D.punchlist.map(function (p, i) {
-    return '<div class="fixcard"><div class="head">' +
-      '<span class="chip ' + (sevCls[p.severity] || 'skip') + '">' + esc(p.severity) + '</span>' +
-      '<span class="chip">' + esc(p.difficulty) + '</span>' +
-      '<span class="ids">' + esc(p.pillar) + ' · ' + esc(p.id) + '</span></div>' +
-      '<div class="action">' + esc(p.action) + '</div>' +
-      '<div class="evidence">' + esc(p.evidence) + '</div>' +
-      '<button class="copy" data-i="' + i + '">Copy action</button></div>';
-  }).join('') : '<div class="empty">Nothing failing — no punchlist items. 🎉</div>';
-  Array.prototype.forEach.call(document.querySelectorAll('.fixcard .copy'), function (b) {
-    b.addEventListener('click', function () {
-      var txt = D.punchlist[parseInt(b.getAttribute('data-i'), 10)].action;
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).catch(function () {});
-      b.textContent = 'Copied ✓';
-      setTimeout(function () { b.textContent = 'Copy action'; }, 1600);
-    });
-  });
-
-  // pillar grid
-  document.getElementById('pillargrid').innerHTML = Object.keys(D.pillars).map(function (k) {
-    var P = D.pillars[k];
-    var apps = P.perApp ? '<div class="apps">' + Object.keys(P.perApp).map(function (a) {
-      return esc(a) + ':' + P.perApp[a].passed + '/' + P.perApp[a].total;
-    }).join(' · ') + '</div>' : '';
-    return '<button class="pillar" data-pillar="' + esc(k) + '">' +
-      '<div class="pid">' + esc(k) + '</div><div class="nm">' + esc(P.name) + '</div>' +
-      '<div class="bar"><i style="width:' + Math.min(100, P.pct) + '%;background:' + colorFor(P.pct) + '"></i></div>' +
-      '<div class="nums"><span>' + P.passed + '/' + P.total + ' checks</span><span>' + P.pct.toFixed(1) + '%</span></div>' + apps + '</button>';
-  }).join('');
-
-  // criteria table
-  var filter = 'all', query = '', pillarFilter = '';
-  var body = document.getElementById('crit-body');
-  var emptyEl = document.getElementById('crit-empty');
-  function renderCrit() {
-    var q = query.toLowerCase();
-    var rows = D.findings.filter(function (f) {
-      if (filter === 'fail' && (f.pass || f.skipped)) return false;
-      if (filter === 'pass' && (!f.pass || f.skipped)) return false;
-      if (filter === 'skip' && !f.skipped) return false;
-      if (pillarFilter && f.pillar !== pillarFilter) return false;
-      var pn = (D.pillars[f.pillar] && D.pillars[f.pillar].name) || f.pillar;
-      if (q && (f.name + ' ' + f.id + ' ' + f.pillar + ' ' + pn + ' ' + (f.app || '')).toLowerCase().indexOf(q) < 0) return false;
-      return true;
-    });
-    body.innerHTML = rows.map(function (f) {
-      var st = f.skipped ? 'skip' : (f.pass ? 'pass' : 'fail');
-      return '<tr class="crit" data-id="' + esc(f.id) + '"><td><span class="dot ' + st + '"></span><span class="pill ' + st + '">' + st + '</span></td>' +
-        '<td><span class="nm">' + esc(f.name) + '</span> <span class="cid">' + esc(f.id) + (f.app ? ' · ' + esc(f.app) : '') + '</span></td>' +
-        '<td>' + (f.droidLevel ? 'L' + f.droidLevel : '—') + '</td>' +
-        '<td>' + esc(f.scope) + '</td>' +
-        '<td>' + esc(f.difficulty) + '</td></tr>' +
-        '<tr class="why" data-for="' + esc(f.id) + '"><td colspan="5">' + esc(f.evidence || 'no evidence recorded') + '</td></tr>';
-    }).join('');
-    emptyEl.style.display = rows.length ? 'none' : 'block';
-    Array.prototype.forEach.call(body.querySelectorAll('tr.crit'), function (tr) {
-      tr.addEventListener('click', function () {
-        var why = body.querySelector('tr.why[data-for="' + tr.getAttribute('data-id') + '"]');
-        if (why) why.classList.toggle('open');
-      });
-    });
-  }
-  renderCrit();
-  Array.prototype.forEach.call(document.querySelectorAll('.controls button.f'), function (b) {
-    b.addEventListener('click', function () {
-      Array.prototype.forEach.call(document.querySelectorAll('.controls button.f'), function (x) { x.classList.remove('on'); });
-      b.classList.add('on');
-      filter = b.getAttribute('data-f');
-      renderCrit();
-    });
-  });
-  document.getElementById('q').addEventListener('input', function (e) { query = e.target.value; renderCrit(); });
-  Array.prototype.forEach.call(document.querySelectorAll('.pillar'), function (b) {
-    b.addEventListener('click', function () {
-      pillarFilter = pillarFilter === b.getAttribute('data-pillar') ? '' : b.getAttribute('data-pillar');
-      document.getElementById('criteria').scrollIntoView({ behavior: 'smooth' });
-      renderCrit();
-    });
-  });
-
-  // footer
-  var appsList = Object.keys(D.apps).length
-    ? '<ul class="apps">' + Object.keys(D.apps).map(function (k) {
-        var a = D.apps[k];
-        return '<li><code>' + esc(k) + '</code> — ' + esc(a.name) + ' (' + esc(a.type) + ')' + (a.description ? ': ' + esc(a.description) : '') + '</li>';
-      }).join('') + '</ul>'
-    : '';
-  document.getElementById('footer').innerHTML =
-    '<div>Scoring model: ' + (D.droidScoring ? 'Droid-compatible flat pass rate' : 'weighted, N-1 gated') +
-    ' · strict=' + D.run.strict + ' · generated by agent-readiness (rubric ' + esc(D.rubric_version) + ')</div>' +
-    (Object.keys(D.apps).length > 1 ? '<div style="margin-top:8px"><b>Applications discovered</b></div>' + appsList : '');
+function renderCriteria(){var q=query.toLowerCase();var rows=D.findings.map(function(f,index){return {f:f,index:index}}).filter(function(item){var f=item.f,st=statusOf(f);if(filter!=='all'&&st!==filter)return false;if(pillarFilter&&f.pillar!==pillarFilter)return false;var pillar=D.pillars[f.pillar];return !q||(f.name+' '+f.id+' '+f.pillar+' '+(pillar?pillar.name:'')+' '+(f.app||'')).toLowerCase().indexOf(q)>=0});$('criteria-body').innerHTML=rows.map(function(item){var f=item.f,st=statusOf(f);return '<tr class="criterion-row" tabindex="0" data-index="'+item.index+'"><td><span class="status '+st+'">'+st+'</span></td><td><div class="criterion-name">'+escapeHtml(f.name)+'</div><div class="criterion-id">'+escapeHtml(f.id)+(f.app?' · '+escapeHtml(f.app):'')+'</div></td><td>'+(f.droidLevel?'L'+f.droidLevel:'—')+'</td><td>'+escapeHtml(f.scope)+'</td><td><span class="difficulty">'+escapeHtml(f.difficulty)+'</span></td><td><span class="view-link">View details →</span></td></tr>'}).join('');$('criteria-empty').hidden=rows.length>0;document.querySelectorAll('.criterion-row').forEach(function(row){var open=function(){openDetail(Number(row.dataset.index))};row.addEventListener('click',open);row.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}})})}
+function detailBlock(label,text,wide){return '<div class="detail-block'+(wide?' wide':'')+'"><div class="detail-label">'+escapeHtml(label)+'</div><div class="detail-copy">'+escapeHtml(text)+'</div></div>'}
+function openDetail(index){if(index<0||!D.findings[index])return;activeIndex=index;var f=D.findings[index],st=statusOf(f);$('dialog-title').textContent=f.name;$('dialog-sub').textContent=f.id+' · '+D.pillars[f.pillar].name+' · '+f.scope;$('dialog-status').innerHTML='<span class="status '+st+'">'+st+'</span><span class="tag" style="margin-left:7px">'+escapeHtml(f.difficulty)+'</span>';$('dialog-details').innerHTML=detailBlock('Why this matters',f.rationale,true)+detailBlock('Criterion standard',f.description,true)+detailBlock(f.pass?'Why this passed':f.skipped?'Why this was skipped':'Why this failed',f.evidence||'No evidence recorded',false)+detailBlock('How it is evaluated',f.evaluation,false)+(!f.pass?detailBlock('Recommended outcome',f.action,true):'');$('dialog-prompt').textContent=f.prompt;$('copy-feedback').textContent='';var dialog=$('criterion-dialog');if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','')}
+renderCriteria();
+document.querySelectorAll('.filter').forEach(function(button){button.addEventListener('click',function(){document.querySelectorAll('.filter').forEach(function(b){b.classList.remove('on')});button.classList.add('on');filter=button.dataset.filter;renderCriteria()})});
+$('search').addEventListener('input',function(e){query=e.target.value;renderCriteria()});
+document.querySelectorAll('.pillar-card').forEach(function(button){button.addEventListener('click',function(){pillarFilter=pillarFilter===button.dataset.pillar?'':button.dataset.pillar;filter='all';document.querySelectorAll('.filter').forEach(function(b){b.classList.toggle('on',b.dataset.filter==='all')});$('criteria').scrollIntoView({behavior:'smooth'});renderCriteria()})});
+document.querySelectorAll('.open-detail').forEach(function(button){button.addEventListener('click',function(){openDetail(Number(button.dataset.index))})});
+$('dialog-close').addEventListener('click',function(){$('criterion-dialog').close()});$('criterion-dialog').addEventListener('click',function(e){if(e.target===$('criterion-dialog'))$('criterion-dialog').close()});
+$('copy-prompt').addEventListener('click',function(){if(activeIndex>=0){copyText(D.findings[activeIndex].prompt,$('copy-prompt'),'Copied');$('copy-feedback').textContent='Ready to paste into any coding agent.'}});
+$('open-first').addEventListener('click',function(){var first=remediationFindings[0]||failedFindings[0];if(first)openDetail(D.findings.indexOf(first));else $('criteria').scrollIntoView({behavior:'smooth'})});
+$('copy-all').addEventListener('click',function(){var prompts=(remediationFindings.length?remediationFindings:failedFindings).slice(0,10).map(function(f){return f.prompt}).join('\\n\\n---\\n\\n');copyText(prompts||'No deterministic remediation is currently required.',$('copy-all'),'Copied all prompts')});
+var savedTheme;try{savedTheme=localStorage.getItem('agent-readiness-theme')}catch(e){}if(savedTheme)document.documentElement.dataset.theme=savedTheme;
+$('theme').addEventListener('click',function(){var next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem('agent-readiness-theme',next)}catch(e){}});
+$('provenance').innerHTML='Generated by agent-readiness · rubric '+escapeHtml(D.rubric_version)+' · config '+escapeHtml(D.config_hash)+' · model '+escapeHtml(D.run.model)+' · commit '+escapeHtml(D.run.commitHash||'unavailable')+' · scoring '+(D.droidScoring?'flat pass rate':'weighted N-1 gates')+(D.run.hasLocalChanges||D.run.hasNonRemoteCommits?' · local or unpushed changes present':'');
 })();
 </script>
 </body>
