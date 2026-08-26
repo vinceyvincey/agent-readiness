@@ -314,7 +314,7 @@ function write(d: string, rel: string, content: string) {
   }
 }
 
-// ---- CLI default model is claude-opus-5 ----
+// ---- CLI default model is 'default' (pi's default, not droid's) ----
 {
   const d = mkRepo();
   write(d, 'src/index.ts', 'export const x = 1;\n');
@@ -324,7 +324,7 @@ function write(d: string, rel: string, content: string) {
   });
   try {
     const j = JSON.parse(res.stdout || '');
-    eq('CLI default model is claude-opus-5', j.run.model, 'claude-opus-5');
+    eq('CLI default model is "default"', j.run.model, 'default');
   } catch {
     eq('CLI default model produces valid JSON', false, true);
   }
