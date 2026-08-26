@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { appendHistory } from './history.ts';
 
-export const RUBRIC_VERSION = '0.5.0';
+export const RUBRIC_VERSION = '0.6.0';
 
 // Level gate map: each entry is the set of pillars that must each pass the 80% gate.
 export const LEVEL_GATES: Record<string, string[]> = {
@@ -245,3 +245,4 @@ export function writeReport(root: string, report: ReadinessReport, targetDir?: s
 
 export { getPillars };
 export { agentPromptFor } from './fix.ts';
+export { CRITERIA_REGISTRY, getCriterionByPiId, getAgentOnlyCriteria } from './criteria-registry.ts';

@@ -14,17 +14,18 @@ Built after researching Factory.ai's *Agent Readiness* model and the open-source
 - `.pi/extensions/agent-readiness/` - the extension (commands + tools)
 
 ## Status
-Research + design committed. **M1-M11 done + verified.** M1-M5: skill, engine, extension+--fix+CI gate, history+trend, validation harness + E1/E2 evidence, dogfooding + distribution. M6: check-correctness bug fixes + git provenance. M7: anti-gaming guards, difficulty axis, droid harness surface checks. M8: monorepo app discovery + per-app scoring. M9: agentic remediation. M10: Droid comparison experiment, synthesized optimal prompts. M11: extracted Droid's actual system prompts from session traces, created 84-criteria mapping, added 20 new checks (35/84 criteria now covered), added quality standards from Droid's /readiness-fix prompt. Rubric v0.5.0. This repo currently scores **L0 / 21.8**.
+Research + design committed. **M1-M12 done + verified.** M1-M5: skill, engine, extension+--fix+CI gate, history+trend, validation harness + E1/E2 evidence, dogfooding + distribution. M6: check-correctness bug fixes + git provenance. M7: anti-gaming guards, difficulty axis, droid harness surface checks. M8: monorepo app discovery + per-app scoring. M9: agentic remediation. M10: Droid comparison experiment, synthesized optimal prompts. M11: extracted Droid's actual system prompts from session traces, created 84-criteria mapping, added 20 new checks. M12: criterion description registry (84 entries), full descriptions in agent prompt, agent-only criteria section, hybrid scoring model (deterministic floor, agent ceiling). Rubric v0.6.0. This repo currently scores **L0 / 21.8**.
 
-### Engine (M2-M11)
+### Engine (M2-M12)
 - src/checks.ts - 10-pillar D-check batteries (~73 checks), git-aware helpers, anti-gaming guards, difficulty axis, Droid-aligned criteria
 - src/engine.ts - runReadiness, 80% N-1 gating + Mandatory P2/P6, app-scoped per-app scoring, report.md/json, config_hash, git provenance, auto history append
 - src/discover.ts - monorepo sub-application discovery (workspaces, turbo/nx, go.work, Cargo, Python)
+- src/criteria-registry.ts - 84-criterion registry with full descriptions, evaluation instructions, pi mappings (47 mapped, 36 agent-only)
 - src/cli.ts - node --experimental-strip-types src/cli.ts <repo> [--json|--strict|--fix|--apply|--agent|--history|--badge]
-- src/fix.ts - --fix remediation drafts (dry-run) + agentPromptFor (M11: quality standards from Droid traces, 73 action descriptions)
+- src/fix.ts - --fix remediation drafts (dry-run) + agentPromptFor (M12: full criterion descriptions, agent-only section, hybrid scoring)
 - src/history.ts - append-only per-repo score history + trend deltas
 - src/badge.ts - inline markdown readiness badge
-- test/ - 6 test suites (engine, history, checks, deepening, monorepo, fix) — 98 assertions, all ALL PASS
+- test/ - 7 test suites (engine, history, checks, deepening, monorepo, fix, criteria-registry) — 131 assertions, all ALL PASS
 - docs/traces/ - Droid session trace extracts (readiness-report prompt, readiness-fix prompt, 84-criteria CSV, criteria mapping)
 
 ### Extension (M3)

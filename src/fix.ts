@@ -3,6 +3,7 @@
 // tracked files unless `apply` is true. This keeps write-safety (dry-run default).
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { CRITERIA_REGISTRY, getCriterionByPiId, getAgentOnlyCriteria, type CriterionDef } from './criteria-registry.ts';
 import type { ReadinessReport } from './engine.ts';
 
 export interface FixDraft { file: string; content: string; note: string; }
@@ -68,13 +69,14 @@ export function writeFixes(target: string, drafts: FixDraft[], apply = false): s
 
 // M9→M11: Build a grounded agentic remediation prompt from the report's punchlist.
 // Synthesized from actual Droid session trace analysis (/readiness-fix system prompt):
+// - Full criterion descriptions and evaluation instructions (from 84-criteria registry)
+// - Agent-only criteria section (36 criteria pi can't check deterministically)
+// - Hybrid scoring model (deterministic floor, agent ceiling)
 // - Behavioral verification (run the actual command, confirm exit 0)
 // - Negative testing (introduce a violation, confirm the tool catches it)
 // - Install real dependencies, not just config stubs
 // - Commit after each fix
 // - Quality standards (no empty placeholders, no gaming the metric)
-// - More specific, actionable remediation instructions
-// - Project context (language, existing structure)
 // This is the single source the extension and CLI both use to drive agent-driven fixes.
 export function agentPromptFor(report: ReadinessReport): string {
   const failed = report.findings.filter((c) => !c.pass);
@@ -148,11 +150,23 @@ export function agentPromptFor(report: ReadinessReport): string {
     'P8.6': 'Add local services setup: create docker-compose.yml for local dependencies (Postgres, Redis, etc.).',
   };
 
+  // M12: Build items with full criterion descriptions from the registry (like Droid's fix prompt).
   const items = topItems.map((c) => {
     const action = actionMap[c.id] || `Fix ${c.id}: ${c.evidence}`;
+    const reg = getCriterionByPiId(c.id);
+    const desc = reg ? reg.description : '';
+    const evalInstr = reg ? reg.evaluation.substring(0, 300) : '';
     return `### ${c.pillar} ${c.id} [${c.severity}/${c.difficulty || 'intermediate'}]
-**Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}
+**Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}${desc ? `\n**Description**: ${desc}` : ''}${evalInstr ? `\n**Evaluation**: ${evalInstr}` : ''}
 **Fix**: ${action}`;
+  }).join('\n\n');
+
+  // M12: Agent-only criteria section — 36 criteria the deterministic engine can't check.
+  const agentOnly = getAgentOnlyCriteria();
+  const agentOnlySection = agentOnly.map((c) => {
+    return `### ${c.droidId} [L${c.level}/${c.scope}${c.skippable ? ', skippable' : ''}]
+**Description**: ${c.description}
+**Evaluation**: ${c.evaluation.substring(0, 300)}`;
   }).join('\n\n');
 
   const appInfo = Object.keys(report.apps).length > 1
@@ -167,8 +181,20 @@ export function agentPromptFor(report: ReadinessReport): string {
 Current readiness: ${report.level} (${report.overall}/100), rubric ${report.rubric_version}.
 ${langContext}Repo: ${report.repo.path}${appInfo}
 
+## Scoring model (deterministic floor, agent ceiling)
+
+The deterministic engine has already scored this repo (the score above is the **floor**). Your job is to:
+1. **Verify**: For each failing check below, run the actual command to confirm it truly fails. If it passes behaviorally (e.g., vitest.config.ts exists AND \`npm test\` runs successfully), note it as a false positive.
+2. **Discover**: Check the ${agentOnly.length} agent-only criteria listed in the "Additional criteria" section. These require runtime verification, API access, or code analysis — things the deterministic engine can't do.
+3. **Augment**: The final score is:
+   - **Raised** if you verify a failing check actually works (deterministic false positive)
+   - **Lowered** if you find a passing check that doesn't actually work (decorative config)
+   - **Extended** if you find agent-only criteria that fail (not in the original score)
+4. **Fix**: Remediate verified failures, starting with highest-severity.
+5. **Re-run**: After fixes, re-run the deterministic engine to get the new floor score.
+
 ## Strategy
-Focus on the ${topItems.length} highest-leverage fixes below (sorted by severity, then difficulty — cheapest high-impact first). For each one:
+Focus on the ${topItems.length} highest-leverage fixes below (sorted by severity, then difficulty). For each one:
 1. Read the existing code and config to understand current conventions before writing anything.
 2. Create or modify the specific file(s) needed — **install real dependencies** (e.g., \`npm install -D vitest eslint\`), not just config stubs.
 3. **Verify the fix works**: run the actual command (e.g., \`npm test\`, \`npm run lint\`, \`tsc --noEmit\`) and confirm it exits 0.
@@ -177,9 +203,16 @@ Focus on the ${topItems.length} highest-leverage fixes below (sorted by severity
 6. Only touch files directly relevant to the failing check — do not refactor unrelated code.
 ${remainingCount > 0 ? `\nAfter these ${topItems.length} fixes, ${remainingCount} more failing checks remain. Re-run the readiness engine to see the updated punchlist.` : ''}
 
-## Failing checks (top ${topItems.length})
+## Failing checks (top ${topItems.length}, with full criterion context)
 
 ${items}
+
+## Additional criteria (agent-only, not covered by deterministic engine)
+
+The deterministic engine checks 47 of Droid's 84 criteria. The following ${agentOnly.length} criteria require
+agent reasoning (runtime verification, API access, code analysis). Evaluate each one and note any failures:
+
+${agentOnlySection}
 
 ## Quality standards (from Droid trace analysis)
 Your fix must **genuinely improve the codebase**. Do NOT use workarounds or shortcuts:

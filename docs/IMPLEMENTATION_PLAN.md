@@ -121,6 +121,17 @@
 - [x] test/checks.test.ts: 22 assertions (7 new for M11). test/fix.test.ts: 22 assertions (3 new for M11 quality standards).
 - Verify: all 6 test suites pass (98 total assertions); E1 harness all pass; H1 gap=55.
 
+## M12 - Criterion registry + hybrid architecture - DONE
+- [x] Created src/criteria-registry.ts: 84-criterion registry with descriptions, evaluation instructions, pi mappings (47 mapped, 36 agent-only).
+- [x] Rewrote agentPromptFor() to include full criterion descriptions + evaluation instructions per failing check (like Droid's /readiness-fix prompt).
+- [x] Added "Additional criteria" section to prompt: all 36 agent-only criteria with descriptions and evaluation instructions.
+- [x] Added "Scoring model (deterministic floor, agent ceiling)" section: agent verifies deterministic findings, discovers agent-only criteria, augments score.
+- [x] Engine re-exports registry functions (getCriterionByPiId, getAgentOnlyCriteria, etc.).
+- [x] Rubric bumped to 0.6.0; SKILL.md updated.
+- [x] test/criteria-registry.test.ts: 26 assertions (registry completeness, mappings, lookups).
+- [x] test/fix.test.ts: 29 assertions (7 new for M12: descriptions, evaluation, agent-only section, hybrid scoring).
+- Verify: all 7 test suites pass (131 total assertions); E1 harness all pass; H1 gap=55.
+
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).
 - Every deterministic check documented: file glob + evidence rule + pass/fail.

@@ -54,6 +54,16 @@ function write(d: string, rel: string, content: string) {
   eq('prompt has quality standards', prompt.includes('## Quality standards'), true);
   eq('prompt has no-placeholder rule', prompt.includes('NO** empty placeholder'), true);
   eq('prompt has BAD/GOOD examples', prompt.includes('BAD') && prompt.includes('GOOD'), true);
+  // M12: prompt includes full criterion descriptions from registry.
+  eq('prompt has description field', prompt.includes('**Description**'), true);
+  eq('prompt has evaluation field', prompt.includes('**Evaluation**'), true);
+  // M12: prompt includes agent-only criteria section.
+  eq('prompt has agent-only section', prompt.includes('## Additional criteria'), true);
+  eq('prompt mentions agent-only count', prompt.includes('agent-only'), true);
+  // M12: prompt includes hybrid scoring model.
+  eq('prompt has scoring model', prompt.includes('## Scoring model'), true);
+  eq('prompt mentions deterministic floor', prompt.includes('floor'), true);
+  eq('prompt mentions agent ceiling', prompt.includes('ceiling'), true);
 }
 
 // ---- agentPromptFor: monorepo awareness ----
