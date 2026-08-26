@@ -1,4 +1,3 @@
-agent-readiness reports/history
 .agent-readiness/
 node_modules/
 *.log
