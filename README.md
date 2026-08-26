@@ -25,8 +25,8 @@ Research + design committed. **M1-M13 done + verified.** M1-M5: skill, engine, e
 - src/fix.ts - --fix remediation drafts (dry-run) + agentPromptFor (M12: full criterion descriptions, agent-only section, hybrid scoring)
 - src/history.ts - append-only per-repo score history + trend deltas
 - src/badge.ts - inline markdown readiness badge
-- test/ - 8 test suites (engine, history, checks, deepening, monorepo, fix, criteria-registry, side-by-side) — 177 assertions, all ALL PASS
-- validation/side-by-side.ts - reusable harness: runs pi + Droid /readiness-report on same repos, parses outputs, compares criteria-by-criteria, optionally runs both fix approaches
+- test/ - 8 test suites (engine, history, checks, deepening, monorepo, fix, criteria-registry, side-by-side) — 189 assertions, all ALL PASS
+- validation/side-by-side.ts - reusable harness: runs pi deterministic + pi hybrid (agentPromptFor via droid exec) + Droid /readiness-report on same repos, 3-way criteria comparison, fix comparison
 - docs/traces/ - Droid session trace extracts (readiness-report prompt, readiness-fix prompt, 84-criteria CSV, criteria mapping)
 
 ### Extension (M3)

@@ -133,14 +133,18 @@
 - Verify: all 7 test suites pass (131 total assertions); E1 harness all pass; H1 gap=55.
 
 ## M13 - Side-by-side evaluation harness - DONE
-- [x] validation/side-by-side.ts: reusable harness that runs pi engine + Droid /readiness-report on same repos, parses both outputs, compares criteria-by-criteria, and optionally runs both fix approaches.
+- [x] validation/side-by-side.ts: reusable harness that runs pi deterministic engine, pi hybrid (agentPromptFor via droid exec), and Droid /readiness-report on same repos, parses all outputs, compares criteria-by-criteria, and optionally runs both fix approaches.
+- [x] Pi hybrid assessment: deterministic floor (pi engine) + agent ceiling (agentPromptFor via droid exec). Agent verifies findings behaviorally, discovers 36 agent-only criteria, fixes verified failures. Engine re-run for ceiling score. Captures fixed check IDs, agent-only criteria mentioned, files changed, commits.
 - [x] Droid output parser: handles multiple Droid output formats (level line variations, bold/non-bold signals, combined signal lines with " / " separator, "skipped" and "null" skip markers, fallback pass-rate computation from signals).
-- [x] Criteria comparison: maps Droid signals to pi checks via 84-criterion registry, classifies as agree-pass, agree-fail, pi-lenient (pi pass, droid fail), pi-strict (pi fail, droid pass), agent-only (no pi mapping).
-- [x] Fix comparison: runs pi's agentPromptFor() via droid exec and Droid's /readiness-fix on disposable repo copies, compares score delta, files changed, commits made.
-- [x] Output: structured JSON + readable markdown report with summary table, per-repo criteria comparison, fix results, and insights section.
-- [x] test/side-by-side.test.ts: 48 assertions (parser, comparison, summary, fix result, markdown rendering).
-- Verify: all 8 test suites pass (177 total assertions); E1 harness all pass; H1 gap=55.
-- Eval results on corpus repos: low (pi=8.4, droid=1.7%, agreement=71.7%), med (pi=15.2, droid=3.3%, agreement=68.3%), high (pi=63.5, droid=20%, agreement=48.6%). Key finding: 9 pi-lenient cases on high repo confirm presence≠signal gap (pi checks file existence, Droid does behavioral verification). 25 agent-only criteria on high repo. Pi runs in ~50ms vs Droid ~100-350s.
+- [x] 3-way criteria comparison: pi deterministic vs Droid, pi hybrid vs Droid. Classifies as agree-pass, agree-fail, pi-lenient, pi-strict, agent-only.
+- [x] Fix comparison: runs pi hybrid (includes fixes) and Droid /readiness-fix on disposable repo copies, compares score delta, files changed, commits made.
+- [x] Output: structured JSON + readable markdown report with 3-way summary table, per-repo criteria comparison, hybrid assessment details, fix results, and insights section.
+- [x] test/side-by-side.test.ts: 58 assertions (parser, comparison, hybrid comparison, summary, fix result, markdown rendering).
+- Verify: all 8 test suites pass (189 total assertions); E1 harness all pass; H1 gap=55.
+- Eval results on corpus repos (3-way):
+  low: pi=8.4 → hybrid=41 (+32.6, 22 checks fixed, 37 agent-only mentioned) vs droid=1.6%
+  med: pi=15.2 → hybrid=67.7 (+52.5, 40 checks fixed, agent timed out) vs droid=3.3%
+  Key finding: pi hybrid combines assessment + remediation (floor→ceiling), while Droid /readiness-report is assessment only (original state). Hybrid "pi-lenient" cases = pi fixed the check, Droid evaluated original which still fails.
 
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).

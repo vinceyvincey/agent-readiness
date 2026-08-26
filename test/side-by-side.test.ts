@@ -3,12 +3,14 @@
 import {
   parseDroidOutput,
   compareCriteria,
+  compareHybridCriteria,
   summarizeComparison,
   computeFixResult,
   renderComparisonMarkdown,
   type DroidSignal,
   type SideBySideReport,
   type FixResult,
+  type PiHybridAssessment,
 } from '../validation/side-by-side.ts';
 import type { CheckResult } from '../src/checks.ts';
 import type { ReadinessReport } from '../src/engine.ts';
@@ -154,6 +156,30 @@ eq('summarize piLenient', summary.piLenient, 0);
 eq('summarize piStrict', summary.piStrict, 0);
 eq('summarize agentOnly', summary.agentOnly, 1);
 
+// ---- Hybrid comparison (pi hybrid ceiling vs Droid) ----
+
+// Simulate ceiling findings: agent fixed P1.1 (AGENTS.md) and P5.3 (tsconfig)
+const ceilingFindings: CheckResult[] = [
+  { id: 'P0.1', pillar: 'P0', pass: true, evidence: 'README found', severity: 'high' },
+  { id: 'P1.1', pillar: 'P1', pass: true, evidence: 'Agent created AGENTS.md', severity: 'high' },  // fixed
+  { id: 'P0.3', pillar: 'P0', pass: false, evidence: 'No architecture docs', severity: 'med' },
+  { id: 'P5.1', pillar: 'P5', pass: true, evidence: 'ESLint found', severity: 'high' },
+  { id: 'P5.5', pillar: 'P5', pass: true, evidence: 'Agent created tsconfig.json', severity: 'high' },  // fixed (was P5.3 fail)
+  { id: 'P5.3', pillar: 'P5', pass: true, evidence: 'Agent created tsconfig.json', severity: 'high' },  // fixed
+  { id: 'P2.1', pillar: 'P2', pass: false, evidence: 'No tests', severity: 'high' },
+];
+
+const hybridComparisons = compareHybridCriteria(ceilingFindings, mockDroidSignals);
+// P1.1 (agents_md): hybrid now PASS, droid FAIL → was agree-fail, now pi-lenient
+const hybridAgentsMd = hybridComparisons.find(c => c.droidId === 'agents_md');
+eq('hybrid agents_md is pi-lenient after fix', hybridAgentsMd?.agreement, 'pi-lenient');
+// P5.3 (type_check): hybrid now PASS, droid FAIL → pi-lenient
+const hybridTypeCheck = hybridComparisons.find(c => c.droidId === 'type_check');
+eq('hybrid type_check is pi-lenient after fix', hybridTypeCheck?.agreement, 'pi-lenient');
+
+const hybridSummary = summarizeComparison(hybridComparisons);
+eq('hybrid summary has pi-lenient from fixed checks', hybridSummary.piLenient > 0, true);
+
 // ---- Fix result computation ----
 
 const mockBeforeReport = { overall: 30, level: 'L0' } as unknown as ReadinessReport;
@@ -169,21 +195,58 @@ eq('computeFixResult durationMs', fixResult.durationMs, 5000);
 
 // ---- Markdown rendering ----
 
+const mockHybrid: PiHybridAssessment = {
+  floorScore: 30,
+  floorLevel: 'L0',
+  floorFindings: mockPiFindings,
+  agentOutput: 'agent verified findings and fixed P1.1, P5.3',
+  agentDurationMs: 180000,
+  filesChanged: ['AGENTS.md', 'tsconfig.json'],
+  commitsMade: 2,
+  ceilingScore: 50,
+  ceilingLevel: 'L0',
+  ceilingFindings,
+  fixedCheckIds: ['P1.1', 'P5.3'],
+  newFailCheckIds: [],
+  scoreDelta: 20,
+  agentOnlyMentioned: ['branch_protection', 'fast_ci_feedback'],
+};
+
 const mockReport: SideBySideReport = {
   repo: 'test-repo',
   pi: { level: 'L1', overall: 30, findings: mockPiFindings, punchlist: [], agentPrompt: 'test', durationMs: 50 },
+  piHybrid: mockHybrid,
   droid: { level: 2, passRate: 24.2, passedSignals: 15, totalSignals: 62, skippedSignals: 1, signals: mockDroidSignals, actionItems: ['Add AGENTS.md'], rawOutput: '', durationMs: 120000 },
   comparisons,
+  hybridComparisons,
   fixes: null,
-  summary: { ...summary, piDurationMs: 50, droidDurationMs: 120000 },
+  summary: {
+    ...summary,
+    hybridAgreementRate: hybridSummary.agreementRate,
+    hybridAgreePass: hybridSummary.agreePass,
+    hybridAgreeFail: hybridSummary.agreeFail,
+    hybridPiLenient: hybridSummary.piLenient,
+    hybridPiStrict: hybridSummary.piStrict,
+    hybridAgentOnly: hybridSummary.agentOnly,
+    piDurationMs: 50,
+    piHybridDurationMs: 180000,
+    droidDurationMs: 120000,
+  },
 };
 
 const md = renderComparisonMarkdown([mockReport]);
 eq('markdown has title', md.includes('# Side-by-Side Evaluation'), true);
 eq('markdown has repo name', md.includes('test-repo'), true);
-eq('markdown has summary table', md.includes('| Repo | Pi Level'), true);
+eq('markdown has 3-way summary table', md.includes('| Repo | Pi Det. | Pi Hybrid'), true);
+eq('markdown has 3-way comparison table', md.includes('3-Way Criteria Agreement'), true);
 eq('markdown has pi level', md.includes('L1'), true);
 eq('markdown has droid level', md.includes('L2'), true);
+eq('markdown has hybrid section', md.includes('Pi Hybrid Assessment'), true);
+eq('markdown has floor score', md.includes('Floor: **30'), true);
+eq('markdown has ceiling score', md.includes('Ceiling: **50'), true);
+eq('markdown has fixed checks', md.includes('P1.1'), true);
+eq('markdown has hybrid vs droid section', md.includes('Pi Hybrid vs Droid'), true);
+eq('markdown has hybrid improvement section', md.includes('Hybrid Improvement'), true);
 
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);
