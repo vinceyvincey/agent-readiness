@@ -57,7 +57,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   // /readiness-fix [--verify] [path]
-  // Runs the deterministic engine, then returns a grounded remediation prompt for the agent.
+  // Runs the deterministic engine, then sends a grounded remediation prompt to the agent.
   pi.registerCommand('readiness-fix', {
     description: 'Run an agent session to remediate failing readiness checks (grounded by the latest report). Flags: --verify (runtime verification first).',
     handler: async (args: string, ctx: any) => {
@@ -71,17 +71,18 @@ export default function (pi: ExtensionAPI) {
       });
       const prompt = fix.agentPromptFor(report);
       ctx.ui.notify(
-        `Readiness-fix: ${report.punchlist.length} failing checks${flags.has('verify') ? ' (runtime-verified)' : ''}. Delegating to agent session.`,
+        `Readiness-fix: ${report.punchlist.length} failing checks${flags.has('verify') ? ' (runtime-verified)' : ''}. Starting agent remediation...`,
         'info',
       );
-      return prompt;
+      // Send the remediation prompt to pi's agent loop so it actually implements fixes.
+      pi.sendUserMessage(prompt);
     },
   });
 
   // /readiness-full [--verify] [--droid-scoring] [path]
   // Full hybrid: deterministic floor + runtime verification + agent assessment + agent remediation.
-  // Returns a combined prompt that instructs pi to verify findings, discover agent-only criteria,
-  // implement fixes, validate, and re-run for a delta.
+  // Sends the combined prompt to pi's agent loop via sendUserMessage() so the agent
+  // actually executes the 4 phases (assess, fix, validate, re-run).
   pi.registerCommand('readiness-full', {
     description: 'Full hybrid assessment + fix: deterministic floor with runtime verification, agent assessment of findings and agent-only criteria, agent-driven remediation, and delta re-run. Flags: --verify (runtime verification, default on), --droid-scoring (flat pass rate).',
     handler: async (args: string, ctx: any) => {
@@ -100,7 +101,7 @@ export default function (pi: ExtensionAPI) {
       });
 
       // Write report artifacts.
-      const dir = engine.writeReport(target, report);
+      engine.writeReport(target, report);
 
       // Build the combined assessment + remediation prompt.
       const prompt = fix.fullHybridPromptFor(report);
@@ -108,19 +109,14 @@ export default function (pi: ExtensionAPI) {
       const failedCount = report.findings.filter((c) => !c.pass && !c.skipped).length;
       const skippedCount = report.findings.filter((c) => c.skipped).length;
       ctx.ui.notify(
-        `Readiness-full: ${report.level} (${report.overall}/100, droid: ${report.droidPassRate}%). ${failedCount} failing, ${skippedCount} skipped. Full hybrid prompt ready.`,
+        `Readiness-full: ${report.level} (${report.overall}/100, droid: ${report.droidPassRate}%). ${failedCount} failing, ${skippedCount} skipped. Starting agent assessment + fix...`,
         'info',
       );
 
-      // Return the deterministic report summary + the combined prompt.
-      // Pi's agent loop will read this and execute the 4 phases (assess, fix, validate, re-run).
-      return `${engine.renderMarkdown(report)}
-
----
-
-## Full Hybrid Prompt (agent execution)
-
-${prompt}`;
+      // Send the combined prompt to pi's agent loop so it actually executes the 4 phases.
+      // This triggers a real agent turn — pi will verify findings, discover agent-only criteria,
+      // implement fixes, validate, and re-run the engine for a delta.
+      pi.sendUserMessage(prompt);
     },
   });
 
