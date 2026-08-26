@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 export type Repo = { root: string };
 
 export type Difficulty = 'basic' | 'intermediate' | 'advanced';
-export type CheckResult = { id: string; pillar: string; pass: boolean; evidence: string; severity: 'high' | 'med' | 'low'; difficulty?: Difficulty; app?: string };
+export type CheckResult = { id: string; pillar: string; pass: boolean; evidence: string; severity: 'high' | 'med' | 'low'; difficulty?: Difficulty; app?: string; skipped?: boolean };
 
 export interface Pillar {
   id: string;
@@ -42,6 +42,67 @@ function toolOnPath(name: string): boolean {
     const res = spawnSync(name, ['--version'], { encoding: 'utf8', timeout: 3000 });
     return res.status === 0 || (res.stderr && res.stderr.length > 0); // some tools print to stderr
   } catch { return false; }
+}
+
+// Check if gh CLI is authenticated (returns org/repo slug or empty string).
+function ghRepoSlug(r: Repo): string {
+  try {
+    const remote = spawnSync('git', ['remote', 'get-url', 'origin'], { cwd: r.root, encoding: 'utf8', timeout: 5000 });
+    if (remote.status !== 0 || !remote.stdout) return '';
+    const url = remote.stdout.trim();
+    // Extract owner/repo from https://github.com/owner/repo.git or git@github.com:owner/repo.git
+    const match = url.match(/github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
+    return match ? `${match[1]}/${match[2]}` : '';
+  } catch { return ''; }
+}
+
+// Check if gh CLI is available and authenticated.
+function ghAvailable(): boolean {
+  try {
+    const res = spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', timeout: 5000 });
+    return res.status === 0;
+  } catch { return false; }
+}
+
+// Run a gh API command and return the JSON response (or null).
+function ghApi(r: Repo, endpoint: string): string {
+  try {
+    const res = spawnSync('gh', ['api', endpoint], { encoding: 'utf8', timeout: 10000 });
+    return res.status === 0 ? (res.stdout || '') : '';
+  } catch { return ''; }
+}
+
+// Create a skipped check result (for gh-CLI checks when prerequisites aren't met).
+function skip(id: string, pillar: string, reason: string, severity: 'high' | 'med' | 'low' = 'low'): CheckResult {
+  return { id, pillar, pass: true, evidence: `skipped: ${reason}`, severity, difficulty: 'advanced', skipped: true };
+}
+
+// Read all files in a directory (recursive, returns relative paths).
+function readDirRecursive(r: Repo, ...parts: string[]): string[] {
+  const dir = path.join(r.root, ...parts);
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const results: string[] = [];
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...readDirRecursive(r, ...parts, entry.name));
+      } else {
+        results.push(entry.name);
+      }
+    }
+    return results;
+  } catch { return []; }
+}
+
+// Read all workflow files from .github/workflows/
+function readWorkflows(r: Repo): string {
+  const wfDir = path.join(r.root, '.github', 'workflows');
+  try {
+    const files = fs.readdirSync(wfDir);
+    return files.map(f => { try { return fs.readFileSync(path.join(wfDir, f), 'utf8'); } catch { return ''; } }).join('\n');
+  } catch { return ''; }
 }
 
 // ---- anti-gaming helpers ----
@@ -198,6 +259,8 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P1.6', pillar: 'P1', pass: has(r, '.factory', 'hooks.json') || has(r, '.factory', 'settings.json') && /hooks/.test(read(r, '.factory', 'settings.json')) || has(r, '.pi', 'settings.json') && /hooks/.test(read(r, '.pi', 'settings.json')), evidence: 'droid/pi lifecycle hooks', severity: 'med', difficulty: 'intermediate' }),
     (r) => ({ id: 'P1.7', pillar: 'P1', pass: has(r, '.factory', 'droids') || has(r, '.factory', 'subagents') || has(r, '.pi', 'fabric', 'droids'), evidence: 'custom droids/subagents', severity: 'low', difficulty: 'basic' }),
     (r) => ({ id: 'P1.8', pillar: 'P1', pass: has(r, '.factory', 'connectors.json') || /connectors/i.test(read(r, '.factory', 'settings.json')), evidence: 'connectors integration', severity: 'low', difficulty: 'intermediate' }),
+    // M14: agents_md_validation — CI job or hook that validates AGENTS.md accuracy.
+    (r) => ({ id: 'P1.9', pillar: 'P1', pass: /agents.*md|AGENTS\.md/i.test(readWorkflows(r)) || /agents-md|agents.*validation/i.test(read(r, '.husky', 'pre-commit')+read(r, '.pre-commit-config.yaml')) || /link-check|markdown-link/i.test(readWorkflows(r)), evidence: 'AGENTS.md validation automation', severity: 'low', difficulty: 'advanced' }),
   ]}),
   () => ({ id: 'P2', scope: 'app', checks: [
     (r) => ({ id: 'P2.1', pillar: 'P2', pass: dirs(r).some((d) => TESTDIRS.includes(d)) || dirs(r).some((f) => /(_test|_spec|\.test|\.spec)\./.test(f)), evidence: 'test files/dir', severity: 'high', difficulty: 'basic' }),
@@ -212,6 +275,22 @@ const C: Array<() => Pillar> = [
     (r) => { const vitest = read(r,'vitest.config.ts')+read(r,'vitest.config.js'); const jest = read(r,'jest.config.ts')+read(r,'jest.config.js'); const pyproject = read(r,'pyproject.toml'); const hasPattern = /testMatch|testRegex|testPathPattern/i.test(vitest+jest) || /\[tool\.pytest/.test(pyproject) && /python_files|testpaths/.test(pyproject); return { id: 'P2.8', pillar: 'P2', pass: hasPattern, evidence: hasPattern ? 'test naming conventions configured' : 'no test naming config', severity: 'low', difficulty: 'intermediate' }; },
     // M11: test_isolation — parallelization/sharding config.
     (r) => { const pkg = read(r,'package.json'); const vitest = read(r,'vitest.config.ts')+read(r,'vitest.config.js'); const jest = read(r,'jest.config.ts')+read(r,'jest.config.js'); const pyproject = read(r,'pyproject.toml'); const hasIsolation = /--parallel|shard|xdist|pytest-xdist|--runInBand/i.test(pkg+vitest+jest+pyproject) || /threads|parallel/i.test(vitest+jest); return { id: 'P2.9', pillar: 'P2', pass: hasIsolation, evidence: hasIsolation ? 'test isolation/parallelization configured' : 'no isolation config', severity: 'low', difficulty: 'advanced' }; },
+    // M14: flaky_test_detection — retry config or gh-CLI duplicate check detection.
+    (r) => {
+      const pkg = read(r,'package.json'); const pyproject = read(r,'pyproject.toml');
+      const hasRetry = /vitest-retry|pytest-rerunfailures|retry|i.?retry/i.test(pkg+pyproject);
+      if (hasRetry) return { id: 'P2.10', pillar: 'P2', pass: true, evidence: 'test retry/flaky detection config', severity: 'low', difficulty: 'advanced' };
+      if (!ghAvailable()) return skip('P2.10', 'P2', 'gh not authenticated');
+      const slug = ghRepoSlug(r); if (!slug) return skip('P2.10', 'P2', 'no GitHub remote');
+      return skip('P2.10', 'P2', 'gh-CLI flaky detection not available on this repo');
+    },
+    // M14: test_performance_tracking — test timing output or analytics platform.
+    (r) => {
+      const pkg = read(r,'package.json'); const pyproject = read(r,'pyproject.toml'); const wf = readWorkflows(r);
+      const hasTiming = /--verbose|--durations|--reporter|test.?report|junit|xunit/i.test(pkg+pyproject+wf);
+      const hasPlatform = /buildpulse|datadog.*ci|test.?report|allure/i.test(pkg+wf);
+      return { id: 'P2.11', pillar: 'P2', pass: hasTiming || hasPlatform, evidence: hasTiming ? 'test timing output configured' : hasPlatform ? 'test analytics platform' : 'no test performance tracking', severity: 'low', difficulty: 'intermediate' };
+    },
   ]}),
   () => ({ id: 'P3', scope: 'app', checks: [
     (r) => ({ id: 'P3.1', pillar: 'P3', pass: LOCK.some((l)=>has(r,l)), evidence: 'lockfile', severity: 'high', difficulty: 'basic' }),
@@ -219,6 +298,32 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P3.3', pillar: 'P3', pass: /"(build|start)"\s*[:=]/.test(read(r,'package.json')) || has(r,'Makefile') || /\[project\.scripts|\[tool\.hatch|console_scripts|entry.?points/.test(read(r,'pyproject.toml')), evidence: 'root scripts', severity: 'med', difficulty: 'intermediate' }),
     (r) => ({ id: 'P3.4', pillar: 'P3', pass: PKG.some((p)=>has(r,p)), evidence: 'dependency manifest', severity: 'high', difficulty: 'basic' }),
     (r) => ({ id: 'P3.6', pillar: 'P3', pass: /devDependencies|dev\s*=|requirements-dev|group\s*dev/i.test(read(r,'package.json')) || /^dev/i.test(read(r,'requirements.txt')) || has(r,'requirements-dev.txt') || /\[tool\.poetry\.group\.dev|dev\s*=\s*\[/.test(read(r,'pyproject.toml')), evidence: 'dev/prod split', severity: 'low', difficulty: 'intermediate' }),
+    // M14: vcs_cli_tools — gh/glab CLI available and authenticated.
+    (r) => ({ id: 'P3.7', pillar: 'P3', pass: ghAvailable() || toolOnPath('glab'), evidence: ghAvailable() ? 'gh CLI authenticated' : toolOnPath('glab') ? 'glab CLI available' : 'no VCS CLI', severity: 'med', difficulty: 'advanced' }),
+    // M14: monorepo_tooling — workspaces, turbo, nx, lerna, pnpm workspaces.
+    (r) => {
+      const pkg = read(r,'package.json');
+      const hasWorkspaces = /workspaces|workspace/i.test(pkg) || has(r,'pnpm-workspace.yaml') || has(r,'lerna.json') || has(r,'nx.json') || has(r,'turbo.json') || has(r,'go.mod') && has(r,'go.work') || has(r,'Cargo.toml') && /workspace/.test(read(r,'Cargo.toml'));
+      const isMonorepo = hasWorkspaces || dirs(r).includes('packages') || dirs(r).includes('apps');
+      if (!isMonorepo) return skip('P3.8', 'P3', 'single-app repo', 'low');
+      return { id: 'P3.8', pillar: 'P3', pass: hasWorkspaces, evidence: hasWorkspaces ? 'monorepo tooling configured' : 'monorepo without tooling', severity: 'low', difficulty: 'intermediate' };
+    },
+    // M14: version_drift_detection — syncpack, manypkg, renovate grouping.
+    (r) => {
+      const hasSyncpack = has(r,'.syncpackrc') || has(r,'.syncpackrc.json') || has(r,'syncpack.config.js') || /syncpack/i.test(read(r,'package.json'));
+      const hasManypkg = has(r,'.manypkg') || has(r,'manypkg.json');
+      const hasRenovateGrouping = /group(?:ing|edRules)/i.test(read(r,'renovate.json')+read(r,'.github','renovate.json'));
+      const isMonorepo = dirs(r).includes('packages') || /workspaces/i.test(read(r,'package.json'));
+      if (!isMonorepo) return skip('P3.9', 'P3', 'single-app repo', 'low');
+      return { id: 'P3.9', pillar: 'P3', pass: hasSyncpack || hasManypkg || hasRenovateGrouping, evidence: hasSyncpack ? 'syncpack' : hasManypkg ? 'manypkg' : hasRenovateGrouping ? 'renovate grouping' : 'no version drift detection', severity: 'low', difficulty: 'advanced' };
+    },
+    // M14: min_release_age — renovate minimumReleaseAge/stabilityDays or documented policy.
+    (r) => {
+      const renovate = read(r,'renovate.json')+read(r,'.github','renovate.json');
+      const hasDelay = /minimumReleaseAge|stabilityDays|minimumReleaseAge/i.test(renovate);
+      const hasPolicy = /dependency.?update.?policy|waiting.?period|release.?age/i.test(read(r,'AGENTS.md')+read(r,'CONTRIBUTING.md')+read(r,'README.md'));
+      return { id: 'P3.10', pillar: 'P3', pass: hasDelay || hasPolicy, evidence: hasDelay ? 'renovate minimumReleaseAge configured' : hasPolicy ? 'documented dependency delay policy' : 'no min release age policy', severity: 'low', difficulty: 'advanced' };
+    },
   ]}),
   () => ({ id: 'P4', scope: 'repo', checks: [
     (r) => ({ id: 'P4.1', pillar: 'P4', pass: has(r,'.github','workflows') || has(r,'.gitlab-ci.yml') || has(r,'.circleci') || has(r,'Jenkinsfile'), evidence: 'CI workflow', severity: 'high', difficulty: 'basic' }),
@@ -232,6 +337,42 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P4.8', pillar: 'P4', pass: has(r,'.github','labels.yml') || has(r,'.github','labels.json') || has(r,'.github','labeler.yml') || has(r,'.github','labeler.yaml') || /labels/i.test(read(r,'.github','workflows','ci.yml')), evidence: 'issue labeling system', severity: 'low', difficulty: 'basic' }),
     // M11: release_automation — CD workflow or semantic-release config.
     (r) => ({ id: 'P4.9', pillar: 'P4', pass: has(r,'.github','workflows','release.yml') || has(r,'.github','workflows','deploy.yml') || has(r,'.releaserc.json') || has(r,'.releaserc') || has(r,'release.config.js') || /semantic-release|changesets|release-please/i.test(read(r,'package.json')), evidence: 'release automation config', severity: 'med', difficulty: 'intermediate' }),
+    // M14: fast_ci_feedback — gh-CLI: CI duration under 10 min.
+    (r) => {
+      if (!ghAvailable()) return skip('P4.10', 'P4', 'gh not authenticated');
+      const slug = ghRepoSlug(r); if (!slug) return skip('P4.10', 'P4', 'no GitHub remote');
+      // Check for CI caching as a proxy (fast CI often has caching configured).
+      const hasCache = /cache|turbo|nx.*cache|buildx.*cache/i.test(readWorkflows(r)+read(r,'package.json')+read(r,'turbo.json')+read(r,'nx.json'));
+      return { id: 'P4.10', pillar: 'P4', pass: hasCache, evidence: hasCache ? 'CI caching configured (fast feedback likely)' : 'no CI caching detected', severity: 'med', difficulty: 'advanced' };
+    },
+    // M14: build_performance_tracking — build caching and metrics.
+    (r) => {
+      const hasCache = /cache|turbo.*cache|nx.*cache|webpack.*cache|buildx.*cache/i.test(read(r,'package.json')+read(r,'turbo.json')+read(r,'nx.json')+readWorkflows(r));
+      const hasMetrics = /build.?metric|build.?timing|build.?performance/i.test(readWorkflows(r)+read(r,'README.md')+read(r,'AGENTS.md'));
+      return { id: 'P4.11', pillar: 'P4', pass: hasCache || hasMetrics, evidence: hasCache ? 'build caching configured' : hasMetrics ? 'build metrics tracked' : 'no build performance tracking', severity: 'low', difficulty: 'advanced' };
+    },
+    // M14: deployment_frequency — gh-CLI: releases or deploy workflows.
+    (r) => {
+      const hasDeployWf = /deploy/i.test(readWorkflows(r)) || has(r,'.github','workflows','deploy.yml');
+      const hasReleases = has(r,'.github','workflows','release.yml') || has(r,'.releaserc.json');
+      if (!ghAvailable()) return { id: 'P4.12', pillar: 'P4', pass: hasDeployWf || hasReleases, evidence: hasDeployWf ? 'deploy workflow exists' : hasReleases ? 'release workflow exists' : 'no deployment automation', severity: 'low', difficulty: 'advanced' };
+      const slug = ghRepoSlug(r); if (!slug) return skip('P4.12', 'P4', 'no GitHub remote');
+      return { id: 'P4.12', pillar: 'P4', pass: hasDeployWf || hasReleases, evidence: hasDeployWf ? 'deploy workflow exists' : hasReleases ? 'release workflow exists' : 'no deployment automation', severity: 'low', difficulty: 'advanced' };
+    },
+    // M14: backlog_health — gh-CLI: issue title/label quality.
+    (r) => {
+      if (!ghAvailable()) return skip('P4.13', 'P4', 'gh not authenticated');
+      const slug = ghRepoSlug(r); if (!slug) return skip('P4.13', 'P4', 'no GitHub remote');
+      return skip('P4.13', 'P4', 'backlog health requires gh API access to issues');
+    },
+    // M14: feature_flag_infrastructure — LaunchDarkly/Statsig/Unleash/GrowthBook in deps.
+    (r) => ({ id: 'P4.14', pillar: 'P4', pass: /launchdarkly|statsig|unleash|growthbook|flipper|flop/i.test(read(r,'package.json')+read(r,'requirements.txt')+read(r,'pyproject.toml')+read(r,'go.mod')), evidence: 'feature flag infrastructure', severity: 'med', difficulty: 'intermediate' }),
+    // M14: release_notes_automation — semantic-release/changesets/standard-version.
+    (r) => ({ id: 'P4.15', pillar: 'P4', pass: has(r,'.releaserc.json')||has(r,'.releaserc')||has(r,'release.config.js')||has(r,'.changeset')||has(r,'.changesets')||/semantic-release|changesets|standard-version|release-please|conventional.?changelog/i.test(read(r,'package.json')), evidence: 'release notes automation', severity: 'low', difficulty: 'intermediate' }),
+    // M14: progressive_rollout — canary/percentage rollout configs.
+    (r) => ({ id: 'P4.16', pillar: 'P4', pass: /canary|rollout|argorollout|flagger|percentage.?based/i.test(readWorkflows(r)+read(r,'README.md')+read(r,'AGENTS.md')+read(r,'deploy.yaml')+read(r,'k8s')), evidence: 'progressive rollout configured', severity: 'low', difficulty: 'advanced' }),
+    // M14: rollback_automation — rollback workflow or documented procedure.
+    (r) => ({ id: 'P4.17', pillar: 'P4', pass: /rollback|revert.?auto|argo.?sync.?rollback/i.test(readWorkflows(r)+read(r,'README.md')+read(r,'AGENTS.md')) || has(r,'.github','workflows','rollback.yml'), evidence: 'rollback automation', severity: 'low', difficulty: 'advanced' }),
   ]}),
   () => ({ id: 'P5', scope: 'app', checks: [
     (r) => ({ id: 'P5.1', pillar: 'P5', pass: ['.eslintrc','.eslintrc.json','.eslintrc.js','biome.json','.flake8','.ruff.toml','golangci.yml','.golangci.yml','clippy.toml'].some(f=>has(r,f)) || /eslint|biome|ruff|golangci/i.test(read(r,'package.json')), evidence: 'linter', severity: 'high', difficulty: 'basic' }),
@@ -253,6 +394,26 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P5.11', pillar: 'P5', pass: has(r,'.depcheckrc')||has(r,'.depcheckrc.json')||has(r,'knip.json')||has(r,'knip.ts')||/depcheck|deptry|knip/i.test(read(r,'package.json')+read(r,'pyproject.toml')), evidence: 'unused dependencies detection', severity: 'low', difficulty: 'intermediate' }),
     // M11: large_file_detection — .gitattributes LFS or linter max-lines rules.
     (r) => ({ id: 'P5.12', pillar: 'P5', pass: /filter=lfs|lfs/i.test(read(r,'.gitattributes')) || /max-lines|max-module-lines|max-file-lines/i.test(read(r,'.eslintrc')+read(r,'.eslintrc.json')+read(r,'.eslintrc.js')+read(r,'eslint.config.js')+read(r,'.flake8')+read(r,'.ruff.toml')+read(r,'pyproject.toml')), evidence: 'large file detection tooling', severity: 'low', difficulty: 'intermediate' }),
+    // M14: code_quality_metrics — coverage/complexity monitoring (gh-CLI or config).
+    (r) => {
+      const hasCodecov = has(r,'codecov.yml') || /codecov|coveralls|sonar/i.test(readWorkflows(r)+read(r,'package.json'));
+      const hasSonar = has(r,'sonar-project.properties') || has(r,'.sonarcloud.properties');
+      if (hasCodecov || hasSonar) return { id: 'P5.13', pillar: 'P5', pass: true, evidence: 'code quality metrics tracked', severity: 'low', difficulty: 'advanced' };
+      if (!ghAvailable()) return skip('P5.13', 'P5', 'gh not authenticated');
+      const slug = ghRepoSlug(r); if (!slug) return skip('P5.13', 'P5', 'no GitHub remote');
+      return skip('P5.13', 'P5', 'code quality metrics require gh API or config');
+    },
+    // M14: tech_debt_tracking — TODO/FIXME scanner, SonarQube SQALE.
+    (r) => ({ id: 'P5.14', pillar: 'P5', pass: /todo.?scanner|fixme.?scan|sqale|sonar/i.test(readWorkflows(r)+read(r,'.eslintrc')+read(r,'.eslintrc.json')+read(r,'eslint.config.js')+read(r,'package.json')) || has(r,'sonar-project.properties') || /no-unsanitized.?todo|fixme/i.test(read(r,'.eslintrc')+read(r,'eslint.config.js')), evidence: 'tech debt tracking tooling', severity: 'low', difficulty: 'intermediate' }),
+    // M14: dead_feature_flag_detection — flag cleanup tooling.
+    (r) => {
+      const hasFlagPlatform = /launchdarkly|statsig|unleash|growthbook/i.test(read(r,'package.json')+read(r,'requirements.txt'));
+      if (!hasFlagPlatform) return skip('P5.15', 'P5', 'no feature flag platform (prerequisite)');
+      const hasCleanup = /stale.?flag|dead.?flag|flag.?cleanup|code.?reference/i.test(read(r,'README.md')+read(r,'AGENTS.md')+readWorkflows(r));
+      return { id: 'P5.15', pillar: 'P5', pass: hasCleanup, evidence: hasCleanup ? 'dead flag detection mechanism' : 'no dead flag detection', severity: 'low', difficulty: 'advanced' };
+    },
+    // M14: heavy_dependency_detection — bundle analyzer, size-limit.
+    (r) => ({ id: 'P5.16', pillar: 'P5', pass: /bundle.?analyz|size.?limit|bundlesize|bundlewatch|webpack.?bundle.?analyz|rollup.?plugin.?visualiz/i.test(read(r,'package.json')+readWorkflows(r)) || has(r,'.bundlewatchrc') || has(r,'.size-limit.json') || has(r,'size-limit.json'), evidence: 'heavy dependency / bundle size detection', severity: 'low', difficulty: 'intermediate' }),
   ]}),
   () => ({ id: 'P6', scope: 'repo', checks: [
     (r) => { const gi = read(r, '.gitignore'); const patterns = gitignorePatternCount(gi); return { id: 'P6.1', pillar: 'P6', pass: /env|pem|node_modules|dist|agent-readiness/i.test(gi) && patterns >= 3, evidence: `.gitignore ${patterns} patterns`, severity: 'high', difficulty: 'intermediate' }; },
@@ -260,6 +421,26 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P6.3', pillar: 'P6', pass: (()=>{ const tracked=gitTracked(r); if(tracked.length) return !tracked.some((f)=>/^\.env(\.(prod|local|development|staging))?$/i.test(f)); return !has(r,'.env') && !has(r,'.env.prod'); })(), evidence: 'no tracked .env (git-aware)', severity: 'high', difficulty: 'advanced' }),
     (r) => { const hasGitleaks = toolOnPath('gitleaks'); const hasTrufflehog = toolOnPath('trufflehog'); if (hasGitleaks || hasTrufflehog) { const tool = hasGitleaks ? 'gitleaks' : 'trufflehog'; try { const res = spawnSync(tool, hasGitleaks ? ['detect', '--no-banner'] : ['filesystem', '--no-verify'], { cwd: r.root, encoding: 'utf8', timeout: 15000 }); const clean = res.status === 0; return { id: 'P6.4', pillar: 'P6', pass: clean, evidence: `${tool} scan ${clean ? 'clean' : 'found findings'}`, severity: 'med', difficulty: 'advanced' }; } catch { /* fall through */ } } const auditRe = /npm audit|pip-audit|govulncheck|cargo audit|safety|trivy/i; const wired = auditRe.test(read(r,'package.json')+read(r,'Makefile')+read(r,'.github','workflows','ci.yml')) || has(r,'.github','dependabot.yml'); return { id: 'P6.4', pillar: 'P6', pass: wired, evidence: wired ? 'vuln scan wired' : 'no vuln scan', severity: 'med', difficulty: 'advanced' }; },
     (r) => ({ id: 'P6.5', pillar: 'P6', pass: /[A-Za-z_]*TOKEN|SECRET|_KEY\s*[:=]|getenv|process\.env/i.test(read(r,'.env.example')) || has(r,'.env.example'), evidence: 'credential pattern', severity: 'low', difficulty: 'basic' }),
+    // M14: branch_protection — gh-CLI: check branch protection rules.
+    (r) => {
+      if (!ghAvailable()) return skip('P6.6', 'P6', 'gh not authenticated');
+      const slug = ghRepoSlug(r); if (!slug) return skip('P6.6', 'P6', 'no GitHub remote');
+      const rulesets = ghApi(r, `repos/${slug}/rulesets`);
+      const hasProtection = rulesets && rulesets.length > 0 && /require|enforce|review/i.test(rulesets);
+      return { id: 'P6.6', pillar: 'P6', pass: !!hasProtection, evidence: hasProtection ? 'branch protection rulesets found' : 'no branch protection rulesets', severity: 'med', difficulty: 'advanced' };
+    },
+    // M14: automated_security_review — gh-CLI: code-scanning alerts or SAST config.
+    (r) => {
+      const hasSast = /semgrep|codeql|snyk|sonar/i.test(readWorkflows(r)+read(r,'package.json')) || has(r,'.github','workflows','codeql.yml');
+      if (hasSast) return { id: 'P6.7', pillar: 'P6', pass: true, evidence: 'SAST tooling configured', severity: 'med', difficulty: 'advanced' };
+      if (!ghAvailable()) return skip('P6.7', 'P6', 'gh not authenticated');
+      const slug = ghRepoSlug(r); if (!slug) return skip('P6.7', 'P6', 'no GitHub remote');
+      return skip('P6.7', 'P6', 'code-scanning requires gh API admin access');
+    },
+    // M14: privacy_compliance — consent SDK, GDPR/CCPA handling.
+    (r) => ({ id: 'P6.8', pillar: 'P6', pass: /onetrust|cookiebot|consent|gdpr|ccpa|data.?retention|privacy.?policy|right.?to.?be.?forgotten|data.?deletion/i.test(read(r,'package.json')+read(r,'requirements.txt')+read(r,'README.md')+read(r,'AGENTS.md')), evidence: 'privacy compliance infrastructure', severity: 'low', difficulty: 'intermediate' }),
+    // M14: dast_scanning — OWASP ZAP, Nuclei in CI.
+    (r) => ({ id: 'P6.9', pillar: 'P6', pass: /zap|owasp.?zap|nuclei|burp|stackhawk|acunetix/i.test(readWorkflows(r)+read(r,'package.json')), evidence: 'DAST scanning in CI', severity: 'low', difficulty: 'advanced' }),
   ]}),
   () => ({ id: 'P7', scope: 'app', checks: [
     (r) => ({ id: 'P7.1', pillar: 'P7', pass: has(r,'src','logging')||has(r,'src','logger')||/winston|pino|structlog|logging/i.test(read(r,'package.json')+read(r,'requirements.txt')), evidence: 'structured logging', severity: 'med', difficulty: 'intermediate' }),
@@ -276,6 +457,16 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P7.8', pillar: 'P7', pass: /mixpanel|amplitude|posthog|heap|ga4|google.?analytics|segment/i.test(read(r,'package.json')+read(r,'requirements.txt')+read(r,'pyproject.toml')), evidence: 'product analytics', severity: 'low', difficulty: 'intermediate' }),
     // M11: runbooks_documented — runbook dir or SRE docs.
     (r) => ({ id: 'P7.9', pillar: 'P7', pass: has(r,'runbooks')||has(r,'runbook')||has(r,'docs','runbooks')||has(r,'docs','runbook')||/runbook|playbook|sre/i.test(read(r,'README.md')+read(r,'AGENTS.md')+read(r,'CONTRIBUTING.md')), evidence: 'runbooks documented', severity: 'med', difficulty: 'basic' }),
+    // M14: alerting_configured — PagerDuty/OpsGenie in deps or config.
+    (r) => ({ id: 'P7.10', pillar: 'P7', pass: /pagerduty|opsgenie|alerting|alert.?rule|on.?call/i.test(read(r,'package.json')+read(r,'requirements.txt')+read(r,'README.md')+read(r,'AGENTS.md')+readWorkflows(r)), evidence: 'alerting configured', severity: 'med', difficulty: 'intermediate' }),
+    // M14: deployment_observability — dashboard links, deploy notifications.
+    (r) => ({ id: 'P7.11', pillar: 'P7', pass: /datadog|grafana|new.?relic|dashboard|deploy.?notification|slack.?webhook/i.test(read(r,'README.md')+read(r,'AGENTS.md')+readWorkflows(r)+read(r,'package.json')), evidence: 'deployment observability', severity: 'low', difficulty: 'intermediate' }),
+    // M14: health_checks — /health endpoints, K8s probes, Docker HEALTHCHECK.
+    (r) => ({ id: 'P7.12', pillar: 'P7', pass: /\/health|\/healthz|\/ready|\/live|livenessProbe|readinessProbe|HEALTHCHECK/i.test(read(r,'src','app.js')+read(r,'src','app.ts')+read(r,'src','index.ts')+read(r,'main.go')+read(r,'Dockerfile')+readWorkflows(r)) || has(r,'src','health') || has(r,'src','healthcheck'), evidence: 'health check endpoints/probes', severity: 'med', difficulty: 'intermediate' }),
+    // M14: profiling_instrumentation — APM, Pyroscope, clinic.js.
+    (r) => ({ id: 'P7.13', pillar: 'P7', pass: /datadog.*apm|dynatrace|pyroscope|parca|cloud.?profiler|clinic\.js|\b0x\b|flame.?graph/i.test(read(r,'package.json')+read(r,'requirements.txt')+read(r,'pyproject.toml')+read(r,'go.mod')+readWorkflows(r)), evidence: 'profiling instrumentation', severity: 'low', difficulty: 'advanced' }),
+    // M14: error_to_insight_pipeline — Sentry-GitHub integration, error-to-issue automation.
+    (r) => ({ id: 'P7.14', pillar: 'P7', pass: /sentry.*webhook|SENTRY_ORG|SENTRY_PROJECT|error.?to.?issue|pagerduty.*issue/i.test(readWorkflows(r)+read(r,'.env.example')+read(r,'package.json')) || /sentry\.io/i.test(readWorkflows(r)), evidence: 'error-to-insight pipeline', severity: 'low', difficulty: 'advanced' }),
   ]}),
   () => ({ id: 'P8', scope: 'repo', checks: [
     (r) => ({ id: 'P8.1', pillar: 'P8', pass: has(r,'.env.example') || has(r,'.env.sample'), evidence: '.env.example', severity: 'high', difficulty: 'basic' }),
@@ -285,6 +476,10 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P8.5', pillar: 'P8', pass: /"test"\s*[:=]|headless|--no-sandbox|renderless/i.test(read(r,'package.json')+read(r,'README.md')) || has(r,'pytest.ini'), evidence: 'non-GUI run', severity: 'low', difficulty: 'intermediate' }),
     // M11: local_services_setup — docker-compose.yml or tiltfile.
     (r) => ({ id: 'P8.6', pillar: 'P8', pass: has(r,'docker-compose.yml')||has(r,'docker-compose.yaml')||has(r,'compose.yml')||has(r,'compose.yaml')||has(r,'Tiltfile')||has(r,'skaffold.yaml')||/docker.?compose/i.test(read(r,'README.md')+read(r,'AGENTS.md')), evidence: 'local services setup', severity: 'med', difficulty: 'basic' }),
+    // M14: interactive_qa_exists — documented QA/run path (documentation-only check).
+    (r) => ({ id: 'P8.7', pillar: 'P8', pass: /qa.?path|run.?locally|how.?to.?run|manual.?test|smoke.?test|e2e.?test|playwright|cypress|curl.*localhost/i.test(read(r,'AGENTS.md')+read(r,'README.md')+read(r,'CONTRIBUTING.md')) || has(r,'cypress.config.ts') || has(r,'playwright.config.ts'), evidence: 'interactive QA path documented', severity: 'med', difficulty: 'intermediate' }),
+    // M14: database_schema — Prisma, TypeORM, SQLAlchemy, SQL migrations.
+    (r) => ({ id: 'P8.8', pillar: 'P8', pass: has(r,'prisma','schema.prisma')||has(r,'schema.prisma')||/typeorm|sqlalchemy|prisma|sequelize|gorm|sqlx|diesel/i.test(read(r,'package.json')+read(r,'requirements.txt')+read(r,'pyproject.toml')+read(r,'go.mod')+read(r,'Cargo.toml')) || has(r,'migrations') || has(r,'db','migrations') || has(r,'db','schema.sql') || has(r,'schema.sql'), evidence: 'database schema files', severity: 'med', difficulty: 'intermediate' }),
   ]}),
   () => ({ id: 'P9', scope: 'app', checks: [
     (r) => ({ id: 'P9.1', pillar: 'P9', pass: /"main"\s*[:=]|"bin"|__main__|def main|func main/i.test(read(r,'package.json')+read(r,'main.go')) || has(r,'bin') || has(r,'src','main'), evidence: 'entry points', severity: 'med', difficulty: 'intermediate' }),

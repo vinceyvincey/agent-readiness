@@ -111,7 +111,7 @@ const mockDroidSignals: DroidSignal[] = [
   { id: 'lint_config', name: 'Linter configured', passed: true, score: '1/1', rationale: 'ESLint', skipped: false },
   { id: 'type_check', name: 'Type checker', passed: false, score: '0/1', rationale: 'no tsconfig', skipped: false },
   { id: 'unit_tests_exist', name: 'Unit tests present', passed: false, score: '0/1', rationale: 'no tests', skipped: false },
-  { id: 'branch_protection', name: 'Branch protection', passed: false, score: '0/1', rationale: 'no gh', skipped: false }, // agent-only
+  { id: 'circuit_breakers', name: 'Circuit breakers', passed: false, score: '0/1', rationale: 'no circuit breakers', skipped: false }, // agent-only (code-analysis)
 ];
 
 const comparisons = compareCriteria(mockPiFindings, mockDroidSignals);
@@ -123,8 +123,8 @@ eq('compareCriteria agree-fail (arch)', comparisons[2].agreement, 'agree-fail');
 eq('compareCriteria agree-pass (linter)', comparisons[3].agreement, 'agree-pass');
 eq('compareCriteria agree-fail (type_check)', comparisons[4].agreement, 'agree-fail');
 eq('compareCriteria agree-fail (tests)', comparisons[5].agreement, 'agree-fail');
-eq('compareCriteria agent-only (branch_protection)', comparisons[6].agreement, 'agent-only');
-eq('compareCriteria branch_protection has null piId', comparisons[6].piId, null);
+eq('compareCriteria agent-only (circuit_breakers)', comparisons[6].agreement, 'agent-only');
+eq('compareCriteria circuit_breakers has null piId', comparisons[6].piId, null);
 
 // Test pi-lenient: pi says pass, droid says fail
 const lenientSignals: DroidSignal[] = [
@@ -199,17 +199,11 @@ const mockHybrid: PiHybridAssessment = {
   floorScore: 30,
   floorLevel: 'L0',
   floorFindings: mockPiFindings,
-  agentOutput: 'agent verified findings and fixed P1.1, P5.3',
+  agentOutput: 'agent verified findings, discovered circuit_breakers and n_plus_one_detection as agent-only',
   agentDurationMs: 180000,
-  filesChanged: ['AGENTS.md', 'tsconfig.json'],
-  commitsMade: 2,
-  ceilingScore: 50,
-  ceilingLevel: 'L0',
-  ceilingFindings,
-  fixedCheckIds: ['P1.1', 'P5.3'],
-  newFailCheckIds: [],
-  scoreDelta: 20,
-  agentOnlyMentioned: ['branch_protection', 'fast_ci_feedback'],
+  agentOnlyMentioned: ['circuit_breakers', 'n_plus_one_detection'],
+  skippedCheckIds: ['P3.7', 'P4.10'],
+  findingsToVerify: 5,
 };
 
 const mockReport: SideBySideReport = {
@@ -243,10 +237,10 @@ eq('markdown has pi level', md.includes('L1'), true);
 eq('markdown has droid level', md.includes('L2'), true);
 eq('markdown has hybrid section', md.includes('Pi Hybrid Assessment'), true);
 eq('markdown has floor score', md.includes('Floor: **30'), true);
-eq('markdown has ceiling score', md.includes('Ceiling: **50'), true);
-eq('markdown has fixed checks', md.includes('P1.1'), true);
+eq('markdown has findings to verify', md.includes('Findings to verify'), true);
+eq('markdown has skipped checks', md.includes('Skipped checks'), true);
 eq('markdown has hybrid vs droid section', md.includes('Pi Hybrid vs Droid'), true);
-eq('markdown has hybrid improvement section', md.includes('Hybrid Improvement'), true);
+eq('markdown has hybrid assessment section', md.includes('Hybrid Assessment'), true);
 
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);

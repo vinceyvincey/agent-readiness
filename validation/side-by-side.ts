@@ -10,7 +10,7 @@
 // --timeout=N: Droid exec timeout in seconds (default 300).
 
 import { runReadiness, type ReadinessReport, type PunchItem } from '../src/engine.ts';
-import { agentPromptFor } from '../src/fix.ts';
+import { agentPromptFor, assessmentPromptFor } from '../src/fix.ts';
 import { CRITERIA_REGISTRY, getCriterionByDroidId, getCriterionByPiId, type CriterionDef } from '../src/criteria-registry.ts';
 import type { CheckResult } from '../src/checks.ts';
 import { spawnSync } from 'node:child_process';
@@ -50,31 +50,25 @@ export interface PiAssessment {
   durationMs: number;
 }
 
-// Pi hybrid assessment: deterministic floor + agent-driven ceiling.
-// The agent runs agentPromptFor() which instructs it to verify findings behaviorally,
-// discover agent-only criteria, fix verified failures, and re-run the engine.
-// We capture before/after deterministic scores plus the agent's raw output.
+// Pi hybrid assessment: deterministic floor + agent-driven verification.
+// The agent runs assessmentPromptFor() which instructs it to verify findings
+// behaviorally and discover agent-only criteria WITHOUT modifying files.
+// This gives a fair comparison with Droid /readiness-report (both assessment-only).
 export interface PiHybridAssessment {
-  // Deterministic floor (before agent run)
+  // Deterministic floor
   floorScore: number;
   floorLevel: string;
   floorFindings: CheckResult[];
-  // Agent run results
+  // Agent assessment results
   agentOutput: string;
   agentDurationMs: number;
   agentError?: string;
-  filesChanged: string[];
-  commitsMade: number;
-  // Deterministic ceiling (after agent run — agent fixes + verification)
-  ceilingScore: number;
-  ceilingLevel: string;
-  ceilingFindings: CheckResult[];
-  // Analysis
-  fixedCheckIds: string[];      // check IDs that went fail → pass
-  newFailCheckIds: string[];    // check IDs that went pass → fail (regressions)
-  scoreDelta: number;           // ceiling - floor
   // Agent-only criteria discovery (parsed from agent output)
-  agentOnlyMentioned: string[]; // droidIds the agent discussed
+  agentOnlyMentioned: string[];
+  // Skipped deterministic checks (e.g., gh-CLI checks when gh not available)
+  skippedCheckIds: string[];
+  // Number of findings the agent was asked to verify
+  findingsToVerify: number;
 }
 
 export type AgreementType = 'agree-pass' | 'agree-fail' | 'pi-lenient' | 'pi-strict' | 'agent-only';
@@ -546,36 +540,26 @@ export function runPiHybridAssessment(
   baseDir: string,
   timeoutSec: number,
 ): PiHybridAssessment {
-  // Prepare a disposable repo copy for the hybrid run
+  // Prepare a disposable repo copy for the hybrid assessment
   const hybridPath = prepareRepo(srcPath, `${name}-hybrid`, baseDir);
 
   // 1. Deterministic floor
   const floorReport = runReadiness(hybridPath);
 
-  // 2. Generate agent prompt and run via droid exec
-  const prompt = agentPromptFor(floorReport);
+  // 2. Generate assessment-only prompt and run via droid exec
+  //    assessmentPromptFor() instructs the agent to verify findings and discover
+  //    agent-only criteria WITHOUT modifying any files.
+  const prompt = assessmentPromptFor(floorReport);
   const agentResult = runPiFixViaDroid(hybridPath, prompt, timeoutSec);
 
-  // 3. Deterministic ceiling (after agent run)
-  const ceilingReport = runReadiness(hybridPath);
-
-  // 4. Analyze what changed
-  const floorFailed = new Set(floorReport.findings.filter(f => !f.pass).map(f => f.id));
-  const ceilingFailed = new Set(ceilingReport.findings.filter(f => !f.pass).map(f => f.id));
-  const floorPassed = new Set(floorReport.findings.filter(f => f.pass).map(f => f.id));
-  const ceilingPassed = new Set(ceilingReport.findings.filter(f => f.pass).map(f => f.id));
-
-  // Fixed: was failing, now passing
-  const fixedCheckIds = [...floorFailed].filter(id => ceilingPassed.has(id)).sort();
-  // Regressed: was passing, now failing
-  const newFailCheckIds = [...floorPassed].filter(id => ceilingFailed.has(id)).sort();
-
-  // 5. Parse agent output for agent-only criteria mentions
+  // 3. Parse agent output for agent-only criteria mentions
   const agentOnlyMentioned = parseAgentOnlyMentions(agentResult.output);
 
-  // 6. Files changed and commits
-  const filesChanged = gitChangedFiles(hybridPath);
-  const commitsMade = Math.max(0, gitCommitCount(hybridPath) - 1); // subtract initial commit
+  // 4. Identify skipped checks (gh-CLI checks when gh not available, etc.)
+  const skippedCheckIds = floorReport.findings.filter(f => f.skipped).map(f => f.id);
+
+  // 5. Count findings the agent was asked to verify
+  const findingsToVerify = floorReport.findings.filter(f => !f.pass && !f.skipped).length;
 
   return {
     floorScore: floorReport.overall,
@@ -584,15 +568,9 @@ export function runPiHybridAssessment(
     agentOutput: agentResult.output,
     agentDurationMs: agentResult.durationMs,
     agentError: agentResult.error,
-    filesChanged,
-    commitsMade,
-    ceilingScore: ceilingReport.overall,
-    ceilingLevel: ceilingReport.level,
-    ceilingFindings: ceilingReport.findings,
-    fixedCheckIds,
-    newFailCheckIds,
-    scoreDelta: Math.round((ceilingReport.overall - floorReport.overall) * 10) / 10,
     agentOnlyMentioned,
+    skippedCheckIds,
+    findingsToVerify,
   };
 }
 
@@ -650,7 +628,7 @@ export function renderComparisonMarkdown(reports: SideBySideReport[]): string {
   lines.push('|---|---|---|---|---|---|---|---|---|');
 
   for (const r of reports) {
-    const hybridScore = r.piHybrid ? `${r.piHybrid.ceilingScore}` : '—';
+    const hybridScore = r.piHybrid ? `floor=${r.piHybrid.floorScore}` : '—';
     const hybridAgree = r.piHybrid ? `${r.summary.hybridAgreementRate}%` : '—';
     const hybridTime = r.piHybrid ? formatMs(r.summary.piHybridDurationMs) : '—';
     lines.push(
@@ -706,19 +684,14 @@ export function renderComparisonMarkdown(reports: SideBySideReport[]): string {
     // Pi hybrid assessment
     if (r.piHybrid) {
       const h = r.piHybrid;
-      lines.push('\n### Pi Hybrid Assessment (deterministic floor + agent ceiling)\n');
+      lines.push('\n### Pi Hybrid Assessment (deterministic floor + agent verification)\n');
       if (h.agentError) lines.push(`- **Agent error**: ${h.agentError}`);
       lines.push(`- Floor: **${h.floorScore}/100** (${h.floorLevel}) — deterministic only`);
-      lines.push(`- Ceiling: **${h.ceilingScore}/100** (${h.ceilingLevel}) — after agent verification + fixes`);
-      lines.push(`- Score delta: **${h.scoreDelta >= 0 ? '+' : ''}${h.scoreDelta}**`);
-      lines.push(`- Checks fixed by agent: **${h.fixedCheckIds.length}** (${h.fixedCheckIds.join(', ') || 'none'})`);
-      if (h.newFailCheckIds.length > 0) {
-        lines.push(`- Regressions: **${h.newFailCheckIds.length}** (${h.newFailCheckIds.join(', ')})`);
-      }
-      lines.push(`- Agent-only criteria mentioned: **${h.agentOnlyMentioned.length}** (${h.agentOnlyMentioned.join(', ') || 'none'})`);
-      lines.push(`- Files changed: ${h.filesChanged.length} (${h.filesChanged.slice(0, 5).join(', ')}${h.filesChanged.length > 5 ? '...' : ''})`);
-      lines.push(`- Commits made: ${h.commitsMade}`);
+      lines.push(`- Findings to verify: **${h.findingsToVerify}** (agent asked to verify behaviorally)`);
+      lines.push(`- Skipped checks: **${h.skippedCheckIds.length}** (${h.skippedCheckIds.join(', ') || 'none'})`);
+      lines.push(`- Agent-only criteria mentioned: **${h.agentOnlyMentioned.length}** (${h.agentOnlyMentioned.slice(0, 5).join(', ')}${h.agentOnlyMentioned.length > 5 ? '...' : ''})`);
       lines.push(`- Agent time: ${formatMs(h.agentDurationMs)}`);
+      lines.push(`- **Note**: Assessment-only — no files modified. Agent verifies findings and discovers agent-only criteria.`);
     }
 
     // Droid assessment
@@ -820,24 +793,26 @@ export function renderComparisonMarkdown(reports: SideBySideReport[]): string {
     const detAgreement = Math.round(totalAgree / (totalCompared || 1) * 1000) / 10;
     const hybAgreement = Math.round(hTotalAgree / (hTotalCompared || 1) * 1000) / 10;
     const improvement = Math.round((hybAgreement - detAgreement) * 10) / 10;
-    lines.push(`\n### Hybrid Improvement\n`);
+    lines.push(`\n### Hybrid Assessment\n`);
     lines.push(`- **Agreement rate change**: ${detAgreement}% → ${hybAgreement}% (${improvement >= 0 ? '+' : ''}${improvement}pp)`);
     lines.push(`- **Pi lenient reduced by**: ${totalLenient - hTotalLenient}`);
     lines.push(`- **Pi strict reduced by**: ${totalStrict - hTotalStrict}`);
 
-    // Hybrid fix effectiveness
+    // Hybrid assessment stats
     const hybridRuns = reports.filter(r => r.piHybrid);
-    const avgHybridDelta = hybridRuns.reduce((a, r) => a + r.piHybrid!.scoreDelta, 0) / (hybridRuns.length || 1);
-    const avgHybridFixed = hybridRuns.reduce((a, r) => a + r.piHybrid!.fixedCheckIds.length, 0) / (hybridRuns.length || 1);
-    lines.push(`- **Avg hybrid score delta**: ${avgHybridDelta >= 0 ? '+' : ''}${Math.round(avgHybridDelta * 10) / 10}`);
-    lines.push(`- **Avg checks fixed by agent**: ${Math.round(avgHybridFixed * 10) / 10}`);
+    const avgAgentOnlyMentioned = hybridRuns.reduce((a, r) => a + r.piHybrid!.agentOnlyMentioned.length, 0) / (hybridRuns.length || 1);
+    const avgFindingsToVerify = hybridRuns.reduce((a, r) => a + r.piHybrid!.findingsToVerify, 0) / (hybridRuns.length || 1);
+    const avgSkipped = hybridRuns.reduce((a, r) => a + r.piHybrid!.skippedCheckIds.length, 0) / (hybridRuns.length || 1);
+    lines.push(`- **Avg agent-only criteria discovered**: ${Math.round(avgAgentOnlyMentioned * 10) / 10}`);
+    lines.push(`- **Avg findings to verify**: ${Math.round(avgFindingsToVerify * 10) / 10}`);
+    lines.push(`- **Avg skipped checks**: ${Math.round(avgSkipped * 10) / 10}`);
 
-    lines.push(`\n> **Note**: The pi hybrid approach modifies the repo (agent fixes failures), while Droid
-> /readiness-report evaluates the original state. Hybrid "pi-lenient" cases are actually
-> "pi fixed this check, Droid evaluated the original which still fails." The hybrid agreement
-> rate is therefore expected to be LOWER than deterministic — it measures what the agent
-> COULD fix, not a fair assessment comparison. The real value is the score improvement
-> (floor → ceiling) and the number of checks the agent successfully remediated.`);
+    lines.push(`\n> **Note**: The pi hybrid assessment uses assessmentPromptFor() which instructs the agent
+> to verify deterministic findings behaviorally and discover agent-only criteria WITHOUT
+> modifying files. This gives a fair comparison with Droid /readiness-report (both
+> assessment-only on the original repo state). The hybrid agreement rate should be CLOSE
+> to the deterministic rate since no files were modified — differences come from the
+> agent identifying false positives and evaluating agent-only criteria.`);
   }
 
   if (hasFixes) {
@@ -965,40 +940,23 @@ function main() {
     let hybridComparisons: CriteriaComparison[] | null = null;
     let hybridStats = { agreementRate: 0, agreePass: 0, agreeFail: 0, piLenient: 0, piStrict: 0, agentOnly: 0 };
     if (piHybrid) {
-      hybridComparisons = compareHybridCriteria(piHybrid.ceilingFindings, droidAssessment.signals);
+      hybridComparisons = compareHybridCriteria(piHybrid.floorFindings, droidAssessment.signals);
       hybridStats = summarizeComparison(hybridComparisons);
     }
 
     // Fix comparison (Droid /readiness-fix only — pi hybrid already includes fixes)
     let fixes: { pi: FixResult; droid: FixResult } | null = null;
     if (!skipFix && droidAvailable) {
-      console.log('Running Droid /readiness-fix comparison...');
+      console.log('Running fix comparison (remediation prompts)...');
 
-      // Pi fix results come from the hybrid run (if available)
-      let piFix: FixResult;
-      if (piHybrid) {
-        piFix = {
-          approach: 'pi',
-          beforeScore: piHybrid.floorScore,
-          afterScore: piHybrid.ceilingScore,
-          scoreDelta: piHybrid.scoreDelta,
-          beforeLevel: piHybrid.floorLevel,
-          afterLevel: piHybrid.ceilingLevel,
-          filesChanged: piHybrid.filesChanged,
-          commitsMade: piHybrid.commitsMade,
-          durationMs: piHybrid.agentDurationMs,
-          error: piHybrid.agentError,
-        };
-      } else {
-        // Fallback: run pi fix separately if hybrid was skipped
-        const piFixPath = prepareRepo(abs, `${name}-pi-fix`, baseDir);
-        const piBefore = runReadiness(piFixPath);
-        console.log('  Running pi fix (agentPromptFor via Droid)...');
-        const piFixResult = runPiFixViaDroid(piFixPath, piAssessment.agentPrompt, timeoutSec);
-        const piAfter = runReadiness(piFixPath);
-        piFix = computeFixResult('pi', piBefore, piAfter, piFixPath, piFixResult.durationMs, piFixResult.error);
-      }
-      console.log(`  Pi fix: ${piFix.beforeScore} → ${piFix.afterScore} (${piFix.scoreDelta >= 0 ? '+' : ''}${piFix.scoreDelta})`);
+      // Pi fix: run agentPromptFor (remediation) via droid exec on a disposable copy
+      const piFixPath = prepareRepo(abs, `${name}-pi-fix`, baseDir);
+      const piBefore = runReadiness(piFixPath);
+      console.log('  Running pi fix (agentPromptFor via Droid)...');
+      const piFixResult = runPiFixViaDroid(piFixPath, piAssessment.agentPrompt, timeoutSec);
+      const piAfter = runReadiness(piFixPath);
+      const piFix = computeFixResult('pi', piBefore, piAfter, piFixPath, piFixResult.durationMs, piFixResult.error);
+      console.log(`  Pi fix: ${piBefore.overall} → ${piAfter.overall} (${piFix.scoreDelta >= 0 ? '+' : ''}${piFix.scoreDelta})`);
 
       // Droid fix: /readiness-fix
       const droidFixPath = prepareRepo(abs, `${name}-droid-fix`, baseDir);

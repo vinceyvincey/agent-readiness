@@ -14,18 +14,18 @@ Built after researching Factory.ai's *Agent Readiness* model and the open-source
 - `.pi/extensions/agent-readiness/` - the extension (commands + tools)
 
 ## Status
-Research + design committed. **M1-M13 done + verified.** M1-M5: skill, engine, extension+--fix+CI gate, history+trend, validation harness + E1/E2 evidence, dogfooding + distribution. M6: check-correctness bug fixes + git provenance. M7: anti-gaming guards, difficulty axis, droid harness surface checks. M8: monorepo app discovery + per-app scoring. M9: agentic remediation. M10: Droid comparison experiment, synthesized optimal prompts. M11: extracted Droid's actual system prompts from session traces, created 84-criteria mapping, added 20 new checks. M12: criterion description registry (84 entries), full descriptions in agent prompt, agent-only criteria section, hybrid scoring model (deterministic floor, agent ceiling). M13: side-by-side evaluation harness (pi vs Droid on same repos, criteria-by-criteria comparison, fix comparison). Rubric v0.6.0. This repo currently scores **L0 / 21.8**.
+Research + design committed. **M1-M14 done + verified.** M1-M5: skill, engine, extension+--fix+CI gate, history+trend, validation harness + E1/E2 evidence, dogfooding + distribution. M6: check-correctness bug fixes + git provenance. M7: anti-gaming guards, difficulty axis, droid harness surface checks. M8: monorepo app discovery + per-app scoring. M9: agentic remediation. M10: Droid comparison experiment, synthesized optimal prompts. M11: extracted Droid's actual system prompts from session traces, created 84-criteria mapping, added 20 new checks. M12: criterion description registry (84 entries), full descriptions in agent prompt, agent-only criteria section, hybrid scoring model (deterministic floor, agent ceiling). M13: side-by-side evaluation harness (pi vs Droid on same repos, criteria-by-criteria comparison, fix comparison). M14: 30 new deterministic checks (9 gh-CLI + 21 config-file), assessment/remediation prompt split, 77/84 criteria now deterministic (92%), only 7 truly agent-only. Rubric v0.7.0.
 
-### Engine (M2-M13)
-- src/checks.ts - 10-pillar D-check batteries (~73 checks), git-aware helpers, anti-gaming guards, difficulty axis, Droid-aligned criteria
-- src/engine.ts - runReadiness, 80% N-1 gating + Mandatory P2/P6, app-scoped per-app scoring, report.md/json, config_hash, git provenance, auto history append
+### Engine (M2-M14)
+- src/checks.ts - 10-pillar D-check batteries (~103 checks), git-aware helpers, anti-gaming guards, difficulty axis, Droid-aligned criteria, gh-CLI checks with skip support
+- src/engine.ts - runReadiness, 80% N-1 gating + Mandatory P2/P6, app-scoped per-app scoring, report.md/json, config_hash, git provenance, auto history append, skipped-check exclusion
 - src/discover.ts - monorepo sub-application discovery (workspaces, turbo/nx, go.work, Cargo, Python)
-- src/criteria-registry.ts - 84-criterion registry with full descriptions, evaluation instructions, pi mappings (47 mapped, 36 agent-only)
+- src/criteria-registry.ts - 84-criterion registry with full descriptions, evaluation instructions, pi mappings (77 mapped, 7 agent-only)
 - src/cli.ts - node --experimental-strip-types src/cli.ts <repo> [--json|--strict|--fix|--apply|--agent|--history|--badge]
-- src/fix.ts - --fix remediation drafts (dry-run) + agentPromptFor (M12: full criterion descriptions, agent-only section, hybrid scoring)
+- src/fix.ts - --fix remediation drafts (dry-run) + agentPromptFor (remediation) + assessmentPromptFor (assessment-only, no file mods)
 - src/history.ts - append-only per-repo score history + trend deltas
 - src/badge.ts - inline markdown readiness badge
-- test/ - 8 test suites (engine, history, checks, deepening, monorepo, fix, criteria-registry, side-by-side) — 189 assertions, all ALL PASS
+- test/ - 8 test suites (engine, history, checks, deepening, monorepo, fix, criteria-registry, side-by-side) — 191 assertions, all ALL PASS
 - validation/side-by-side.ts - reusable harness: runs pi deterministic + pi hybrid (agentPromptFor via droid exec) + Droid /readiness-report on same repos, 3-way criteria comparison, fix comparison
 - docs/traces/ - Droid session trace extracts (readiness-report prompt, readiness-fix prompt, 84-criteria CSV, criteria mapping)
 

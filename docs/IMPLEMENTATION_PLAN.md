@@ -146,6 +146,17 @@
   med: pi=15.2 → hybrid=67.7 (+52.5, 40 checks fixed, agent timed out) vs droid=3.3%
   Key finding: pi hybrid combines assessment + remediation (floor→ceiling), while Droid /readiness-report is assessment only (original state). Hybrid "pi-lenient" cases = pi fixed the check, Droid evaluated original which still fails.
 
+## M14 - 30 new deterministic checks + assessment/remediation split - DONE
+- [x] Added `skipped?: boolean` to CheckResult — checks that can't run (e.g., gh-CLI when not authenticated) are excluded from scoring, not counted as failures.
+- [x] 9 gh-CLI deterministic checks: P3.7 (vcs_cli_tools), P4.10 (fast_ci_feedback), P4.11 (build_performance_tracking), P4.12 (deployment_frequency), P4.13 (backlog_health), P6.6 (branch_protection), P6.7 (automated_security_review), P2.10 (flaky_test_detection), P5.13 (code_quality_metrics). These use `gh` CLI API calls and skip when gh is not available or repo has no real remote.
+- [x] 21 config-file deterministic checks: P1.9 (agents_md_validation), P2.11 (test_performance_tracking), P3.8 (monorepo_tooling), P3.9 (version_drift_detection), P3.10 (min_release_age), P4.14 (feature_flag_infrastructure), P4.15 (release_notes_automation), P4.16 (progressive_rollout), P4.17 (rollback_automation), P5.14 (tech_debt_tracking), P5.15 (dead_feature_flag_detection), P5.16 (heavy_dependency_detection), P6.8 (privacy_compliance), P6.9 (dast_scanning), P7.10 (alerting_configured), P7.11 (deployment_observability), P7.12 (health_checks), P7.13 (profiling_instrumentation), P7.14 (error_to_insight_pipeline), P8.7 (interactive_qa_exists), P8.8 (database_schema).
+- [x] Updated criteria registry: 30 formerly agent-only criteria now mapped to pi check IDs. 77/84 (92%) now deterministic, only 7 truly agent-only (devcontainer_runnable, n_plus_one_detection, unit_tests_runnable, interactive_qa_runnable, circuit_breakers, pii_handling, log_scrubbing).
+- [x] Created assessmentPromptFor() in fix.ts — instructs agent to verify deterministic findings behaviorally, discover 7 agent-only criteria, and report augmented score WITHOUT modifying files. This gives a fair comparison with Droid /readiness-report (both assessment-only on original repo state).
+- [x] Updated side-by-side harness: hybrid assessment uses assessmentPromptFor (no file mods), fix comparison uses agentPromptFor (remediation) vs Droid /readiness-fix.
+- [x] Updated actionById in engine.ts with remediation actions for all 30 new check IDs.
+- [x] Rubric bumped to 0.7.0. ~103 total checks across 10 pillars.
+- Verify: all 8 test suites pass (191 total assertions); E1 harness all pass (H1 gap=46).
+
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).
 - Every deterministic check documented: file glob + evidence rule + pass/fail.

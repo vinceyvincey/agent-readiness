@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { appendHistory } from './history.ts';
 
-export const RUBRIC_VERSION = '0.6.0';
+export const RUBRIC_VERSION = '0.7.0';
 
 // Level gate map: each entry is the set of pillars that must each pass the 80% gate.
 export const LEVEL_GATES: Record<string, string[]> = {
@@ -90,7 +90,8 @@ export function detectLanguage(root: string): string {
 }
 
 function scorePillar(checks: CheckResult[]): PillarScore {
-  const dt = checks.filter((c) => c.id && c.pass !== undefined);
+  // Exclude skipped checks from scoring (e.g., gh-CLI checks when gh not authenticated).
+  const dt = checks.filter((c) => c.id && c.pass !== undefined && !c.skipped);
   const passed = dt.filter((c) => c.pass).length;
   const total = dt.length || 1;
   return { passed, total, pct: Math.round((passed / total) * 1000) / 10 };
@@ -195,11 +196,42 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
     'P8.1': 'Add .env.example listing required env vars with placeholder values.',
     'P8.2': 'Add a one-command setup script (e.g., `npm run setup` or `make setup`) that installs deps and prepares the environment.',
     'P8.6': 'Add local services setup: create docker-compose.yml for local dependencies (Postgres, Redis, etc.).',
+    // M14: new check remediation actions
+    'P1.9': 'Add AGENTS.md validation: CI job or pre-commit hook that checks AGENTS.md commands work.',
+    'P2.10': 'Add flaky test detection: install vitest-retry/pytest-rerunfailures or configure flaky test tracking.',
+    'P2.11': 'Add test performance tracking: configure --verbose/--durations flags or integrate test analytics platform.',
+    'P3.7': 'Install and authenticate gh CLI: run `gh auth login` to enable gh-based checks.',
+    'P3.8': 'Add monorepo tooling: configure npm/pnpm workspaces, Turborepo, Nx, or Lerna.',
+    'P3.9': 'Add version drift detection: install syncpack/manypkg or configure Renovate grouping rules.',
+    'P3.10': 'Add minimum release age policy: configure Renovate minimumReleaseAge or document dependency delay policy.',
+    'P4.10': 'Add CI caching: configure turbo cache, nx cache, or buildx cache for faster CI feedback.',
+    'P4.11': 'Add build performance tracking: configure build caching and export build metrics.',
+    'P4.12': 'Add deployment automation: create deploy workflow or release pipeline.',
+    'P4.13': 'Use gh CLI to check backlog health: ensure issues have descriptive titles and labels.',
+    'P4.14': 'Add feature flag infrastructure: install LaunchDarkly/Statsig/Unleash/GrowthBook SDK.',
+    'P4.15': 'Add release notes automation: configure semantic-release, changesets, or release-please.',
+    'P4.16': 'Add progressive rollout: configure canary deployments or percentage-based rollouts.',
+    'P4.17': 'Add rollback automation: create rollback workflow or document rollback procedure.',
+    'P5.13': 'Add code quality metrics: configure Codecov/SonarQube or GitHub code scanning.',
+    'P5.14': 'Add tech debt tracking: configure TODO/FIXME scanner in CI or SonarQube SQALE.',
+    'P5.15': 'Add dead feature flag detection: configure stale flag detection in your feature flag platform.',
+    'P5.16': 'Add heavy dependency detection: install bundle analyzer or size-limit tool.',
+    'P6.6': 'Enable branch protection: configure GitHub rulesets for main branch (require PRs, reviews).',
+    'P6.7': 'Add automated security review: configure CodeQL, Semgrep, or Snyk in CI.',
+    'P6.8': 'Add privacy compliance: install consent management SDK or document GDPR/CCPA handling.',
+    'P6.9': 'Add DAST scanning: configure OWASP ZAP or Nuclei in CI against staging.',
+    'P7.10': 'Add alerting: configure PagerDuty/OpsGenie or custom alert rules.',
+    'P7.11': 'Add deployment observability: link to monitoring dashboards in docs or configure deploy notifications.',
+    'P7.12': 'Add health checks: implement /health endpoint or configure K8s liveness/readiness probes.',
+    'P7.13': 'Add profiling instrumentation: install APM tool or continuous profiler.',
+    'P7.14': 'Add error-to-insight pipeline: configure Sentry-GitHub integration or error-to-issue automation.',
+    'P8.7': 'Add interactive QA documentation: document how to run and exercise the app end-to-end.',
+    'P8.8': 'Add database schema files: create Prisma schema, SQLAlchemy models, or SQL migrations.',
   };
   const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
   const punchlist: PunchItem[] = findings
-    .filter((c) => !c.pass)
+    .filter((c) => !c.pass && !c.skipped)
     .sort((a, b) => (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) || (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1))
     .slice(0, 10)
     .map((c) => ({ pillar: c.pillar, id: c.id, severity: c.severity, difficulty: c.difficulty || 'intermediate', action: actionById[c.id] || 'No mapped remediation', evidence: c.evidence }));
@@ -244,5 +276,5 @@ export function writeReport(root: string, report: ReadinessReport, targetDir?: s
 }
 
 export { getPillars };
-export { agentPromptFor } from './fix.ts';
+export { agentPromptFor, assessmentPromptFor } from './fix.ts';
 export { CRITERIA_REGISTRY, getCriterionByPiId, getAgentOnlyCriteria } from './criteria-registry.ts';

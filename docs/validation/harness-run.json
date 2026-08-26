@@ -1,30 +1,30 @@
 {
-  "date": "2026-08-26T14:41:47.549Z",
+  "date": "2026-08-26T15:11:27.258Z",
   "model": "arn",
   "repos": {
     "low": {
       "level": "L0",
-      "overall": 8.4,
+      "overall": 8.2,
       "P2": 0,
-      "P6": 40,
+      "P6": 28.6,
       "mandatoryBroken": false,
-      "rubric_version": "0.6.0"
+      "rubric_version": "0.7.0"
     },
     "med": {
       "level": "L0",
-      "overall": 15.2,
+      "overall": 14.4,
       "P2": 0,
-      "P6": 40,
+      "P6": 28.6,
       "mandatoryBroken": false,
-      "rubric_version": "0.6.0"
+      "rubric_version": "0.7.0"
     },
     "high": {
       "level": "L0",
-      "overall": 63.5,
-      "P2": 66.7,
-      "P6": 80,
+      "overall": 54.5,
+      "P2": 60,
+      "P6": 57.1,
       "mandatoryBroken": false,
-      "rubric_version": "0.6.0"
+      "rubric_version": "0.7.0"
     }
   },
   "summary": {
