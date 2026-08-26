@@ -109,6 +109,18 @@
 - [x] test/fix.test.ts: 19 assertions (6 new for M10 prompt features). test/checks.test.ts: 15 assertions (6 new for M10 checks).
 - Verify: all 6 test suites pass (87 total assertions); E1 harness all pass; H1 gap=68.
 
+## M11 - Droid trace analysis + full criteria alignment - DONE
+- [x] Extracted Droid's actual `/readiness-report` system prompt (52K chars, 84 criteria, 5 phases) from session traces at ~/.factory/sessions/.
+- [x] Extracted Droid's actual `/readiness-fix` prompt (40K chars, failing signals with descriptions and evaluation instructions).
+- [x] Saved trace artifacts to docs/traces/ (report prompt, fix prompt, 84-criteria CSV, criteria mapping).
+- [x] Created docs/traces/criteria-mapping.md: full 84-criteria mapping (15 aligned, 9 partial, 20 feasible gaps, 40 agent-only).
+- [x] Added 20 new deterministic checks to checks.ts: P0.7-P0.9, P2.7-P2.9, P4.8-P4.9, P5.7-P5.12, P7.5-P7.9, P8.6.
+- [x] Enriched agentPromptFor() with Droid's quality standards: "NO empty placeholder files", "NO minimal implementations", BAD/GOOD fix examples.
+- [x] Updated actionById with detailed descriptions for all 20 new checks (now covers 73 check IDs).
+- [x] Rubric bumped to 0.5.0; pi now covers 35 of Droid's 84 criteria (42%, up from 25%).
+- [x] test/checks.test.ts: 22 assertions (7 new for M11). test/fix.test.ts: 22 assertions (3 new for M11 quality standards).
+- Verify: all 6 test suites pass (98 total assertions); E1 harness all pass; H1 gap=55.
+
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).
 - Every deterministic check documented: file glob + evidence rule + pass/fail.

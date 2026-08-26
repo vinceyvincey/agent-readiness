@@ -1,6 +1,6 @@
 # Pi vs Droid Agent-Readiness: Comparative Analysis
 
-> M10 experiment: run Factory Droid's built-in `/readiness-report` and `/readiness-fix` on disposable test repos, compare against pi's deterministic engine and `agentPromptFor()` output, synthesize optimal prompts.
+> M10-M11: ran Factory Droid's `/readiness-report` and `/readiness-fix` on disposable test repos, extracted actual Droid system prompts from session traces, compared against pi's deterministic engine, and synthesized optimal prompts. This is a **trace-based** analysis (M11), not outcome-based inference (M10).
 
 ## Experiment setup
 
@@ -251,16 +251,38 @@ These are the highest-impact missing checks that are feasible to implement deter
 
 ---
 
-## Implementation (M10)
+## Implementation (M10 + M11)
 
-Based on the comparison, the following changes were made:
-
+### M10 (outcome-based inference)
 1. **`fix.ts`**: Rewrote `agentPromptFor()` with behavioral verification, negative testing, dependency installation, commit instructions, project context, and grouped action items
 2. **`checks.ts`**: Added P5.6 (strict TypeScript), P4.6 (issue templates), P4.7 (PR templates)
 3. **`engine.ts`**: Updated `actionById` map with detailed, Droid-inspired action descriptions
-4. **`test/fix.test.ts`**: Updated assertions for new prompt format
-5. **`test/checks.test.ts`**: Added assertions for new checks
-6. This document
+
+### M11 (trace-based analysis)
+After extracting Droid's actual system prompts from session traces at `~/.factory/sessions/`:
+
+4. **Trace artifacts**: Saved Droid's actual `/readiness-report` prompt (52K chars, 84 criteria, 5 phases) and `/readiness-fix` prompt (40K chars, failing signals with descriptions and evaluation instructions) to `docs/traces/`
+5. **Criteria mapping**: Created `docs/traces/criteria-mapping.md` mapping all 84 Droid criteria to pi checks (15 aligned, 9 partial, 20 feasible gaps, 40 agent-only)
+6. **20 new checks added** to `checks.ts`:
+   - P0.7 (documentation freshness), P0.8 (automated doc generation), P0.9 (API schema docs)
+   - P2.7 (integration tests), P2.8 (test naming conventions), P2.9 (test isolation)
+   - P4.8 (issue labeling system), P4.9 (release automation)
+   - P5.7 (naming consistency), P5.8 (dead code detection), P5.9 (duplicate code detection), P5.10 (cyclomatic complexity), P5.11 (unused dependencies detection), P5.12 (large file detection tooling)
+   - P7.5 (distributed tracing), P7.6 (metrics collection), P7.7 (error tracking), P7.8 (product analytics), P7.9 (runbooks documented)
+   - P8.6 (local services setup)
+7. **Quality standards section** added to `agentPromptFor()` — direct adoption from Droid's `/readiness-fix` prompt: "NO empty placeholder files", "NO minimal implementations that technically pass", "NO disabling checks", BAD/GOOD fix examples
+8. **actionById** expanded with detailed descriptions for all 20 new checks
+9. **Rubric bumped to 0.5.0** — pi now has ~73 checks covering 35 of Droid's 84 criteria (42%, up from 25%)
+10. 98 assertions across 6 test suites, all pass; E1 harness all pass (H1 gap=55)
+
+### Key insight from trace analysis
+
+M10 inferred Droid's prompt quality from output behavior. M11 revealed the actual prompts are **much richer**:
+- Droid's `/readiness-fix` prompt is 40K chars, includes full criterion descriptions and evaluation instructions for every failing signal
+- Droid has explicit quality standards with BAD/GOOD examples
+- Droid uses a 5-phase evaluation process (scan, discover, evaluate, validate, report)
+- Doid's scoring is flat pass-rate (L1: 0-20%, L2: 20-40%, etc.) vs pi's pillar-based 80% N-1 gating
+- Both approaches are valid: pi's is deterministic and reproducible; Droid's is nuanced and context-aware
 
 ## Raw data
 

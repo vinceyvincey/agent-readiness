@@ -1,38 +1,38 @@
 {
-  "date": "2026-08-26T12:15:25.717Z",
+  "date": "2026-08-26T12:30:09.687Z",
   "model": "arn",
   "repos": {
     "low": {
       "level": "L0",
-      "overall": 10.7,
+      "overall": 8.4,
       "P2": 0,
       "P6": 40,
       "mandatoryBroken": false,
-      "rubric_version": "0.4.0"
+      "rubric_version": "0.5.0"
     },
     "med": {
       "level": "L0",
-      "overall": 16.8,
+      "overall": 15.2,
       "P2": 0,
       "P6": 40,
       "mandatoryBroken": false,
-      "rubric_version": "0.4.0"
+      "rubric_version": "0.5.0"
     },
     "high": {
-      "level": "L2",
-      "overall": 78.5,
-      "P2": 100,
+      "level": "L0",
+      "overall": 63.5,
+      "P2": 66.7,
       "P6": 80,
       "mandatoryBroken": false,
-      "rubric_version": "0.4.0"
+      "rubric_version": "0.5.0"
     },
     "agent-readiness": {
       "level": "L0",
-      "overall": 27.7,
-      "P2": 16.7,
+      "overall": 21.8,
+      "P2": 11.1,
       "P6": 40,
       "mandatoryBroken": false,
-      "rubric_version": "0.4.0"
+      "rubric_version": "0.5.0"
     }
   },
   "summary": {

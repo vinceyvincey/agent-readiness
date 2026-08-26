@@ -50,6 +50,10 @@ function write(d: string, rel: string, content: string) {
   eq('prompt has install deps instruction', prompt.includes('install real dependencies'), true);
   eq('prompt has strategy section', prompt.includes('## Strategy'), true);
   eq('prompt has top-5 focus', prompt.includes('highest-leverage'), true);
+  // M11: prompt includes quality standards from Droid trace analysis.
+  eq('prompt has quality standards', prompt.includes('## Quality standards'), true);
+  eq('prompt has no-placeholder rule', prompt.includes('NO** empty placeholder'), true);
+  eq('prompt has BAD/GOOD examples', prompt.includes('BAD') && prompt.includes('GOOD'), true);
 }
 
 // ---- agentPromptFor: monorepo awareness ----

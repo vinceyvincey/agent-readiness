@@ -24,7 +24,7 @@ const j = JSON.parse(fs.readFileSync(path.join(tmp,'report.json'),'utf8'));
 eq('writeReport creates json', hasJson, true);
 eq('writeReport creates md', hasMd, true);
 eq('report.json level', j.level, rep.level);
-eq('report.json rubric_version', j.rubric_version, '0.4.0');
+eq('report.json rubric_version', j.rubric_version, '0.5.0');
 eq('report.json run.commitHash non-empty (git repo)', j.run.commitHash.length > 0, true);
 eq('report.json run.branch non-empty (git repo)', j.run.branch.length > 0, true);
 

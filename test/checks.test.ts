@@ -173,5 +173,68 @@ function write(d: string, rel: string, content: string) {
   eq('P4.7 passes on PR template', c.pass, true);
 }
 
+// ---- M11: P2.7 integration tests ----
+{
+  const d = mkRepo();
+  write(d, 'playwright.config.ts', 'export default { testDir: "./e2e" };\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P2.7')!;
+  eq('P2.7 passes on playwright config', c.pass, true);
+}
+
+// ---- M11: P5.8 dead code detection ----
+{
+  const d = mkRepo();
+  write(d, 'knip.json', '{"ignore": []}');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P5.8')!;
+  eq('P5.8 passes on knip config', c.pass, true);
+}
+
+// ---- M11: P5.9 duplicate code detection ----
+{
+  const d = mkRepo();
+  write(d, '.jscpd.json', '{"threshold": 0}');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P5.9')!;
+  eq('P5.9 passes on jscpd config', c.pass, true);
+}
+
+// ---- M11: P7.7 error tracking ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', '{"dependencies": {"@sentry/node": "^7.0.0"}}');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P7.7')!;
+  eq('P7.7 passes on Sentry dep', c.pass, true);
+}
+
+// ---- M11: P8.6 local services setup ----
+{
+  const d = mkRepo();
+  write(d, 'docker-compose.yml', 'services:\n  db:\n    image: postgres\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P8.6')!;
+  eq('P8.6 passes on docker-compose', c.pass, true);
+}
+
+// ---- M11: P0.9 API schema docs ----
+{
+  const d = mkRepo();
+  write(d, 'openapi.json', '{"openapi": "3.0.0"}');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P0.9')!;
+  eq('P0.9 passes on openapi.json', c.pass, true);
+}
+
+// ---- M11: P4.8 issue labeling system ----
+{
+  const d = mkRepo();
+  write(d, '.github/labels.yml', '- name: bug\n  color: red\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P4.8')!;
+  eq('P4.8 passes on labels.yml', c.pass, true);
+}
+
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);

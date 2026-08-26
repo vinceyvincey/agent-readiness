@@ -66,12 +66,13 @@ export function writeFixes(target: string, drafts: FixDraft[], apply = false): s
   return dir;
 }
 
-// M9→M10: Build a grounded agentic remediation prompt from the report's punchlist.
-// Synthesized from comparison with Factory Droid's /readiness-fix behavior:
+// M9→M11: Build a grounded agentic remediation prompt from the report's punchlist.
+// Synthesized from actual Droid session trace analysis (/readiness-fix system prompt):
 // - Behavioral verification (run the actual command, confirm exit 0)
 // - Negative testing (introduce a violation, confirm the tool catches it)
 // - Install real dependencies, not just config stubs
 // - Commit after each fix
+// - Quality standards (no empty placeholders, no gaming the metric)
 // - More specific, actionable remediation instructions
 // - Project context (language, existing structure)
 // This is the single source the extension and CLI both use to drive agent-driven fixes.
@@ -88,12 +89,15 @@ export function agentPromptFor(report: ReadinessReport): string {
   const topItems = sorted.slice(0, 5);
   const remainingCount = sorted.length - topItems.length;
 
-  // Build detailed, actionable items using the engine's actionById descriptions.
+  // Build detailed, actionable items using Droid-inspired criterion descriptions.
   const actionMap: Record<string, string> = {
     'P0.1': 'Write a real README with project overview, setup, usage, and verification sections (>200 chars, >=2 content lines).',
     'P0.2': 'Add a run/usage/quickstart section to README with exact commands.',
     'P0.3': 'Add a docs/ directory or ARCHITECTURE.md describing module structure.',
     'P0.6': 'Add an H1 title to README.',
+    'P0.7': 'Update documentation (README, AGENTS.md, CONTRIBUTING.md) — key docs should be modified within the last 180 days.',
+    'P0.8': 'Add automated doc generation: configure typedoc (TS), sphinx (Py), or mkdocs.',
+    'P0.9': 'Add API schema docs: create openapi.json/swagger.yaml or GraphQL schema file.',
     'P1.1': 'Create AGENTS.md with install, test, lint, and build commands plus behavior rules.',
     'P1.2': 'Add enforceable rules (must/always/never) AND backtick-quoted commands matching real scripts to AGENTS.md.',
     'P1.4': 'Add MCP config (mcp.json) or CLAUDE.md for agent context.',
@@ -105,6 +109,9 @@ export function agentPromptFor(report: ReadinessReport): string {
     'P2.3': 'Add a run-test one-liner (`npm test` / `make test`).',
     'P2.4': 'Configure a coverage threshold > 0 in vitest/jest/pytest config.',
     'P2.6': 'Add a fast/smoke test path (test:fast script or vitest testPathIgnorePatterns).',
+    'P2.7': 'Add integration/e2e tests: install cypress or playwright and create config.',
+    'P2.8': 'Configure test naming conventions: set testMatch/testRegex in vitest/jest config.',
+    'P2.9': 'Configure test isolation: enable parallelization (vitest threads, pytest-xdist) or sharding.',
     'P3.1': 'Commit a lockfile for reproducible builds. Run `npm install` to generate it.',
     'P3.2': 'Add a build step (`build` script in package.json or Makefile target).',
     'P3.4': 'Add a dependency manifest (package.json / pyproject.toml / go.mod / Cargo.toml) with declared dependencies.',
@@ -116,15 +123,29 @@ export function agentPromptFor(report: ReadinessReport): string {
     'P4.5': 'Add dependency update automation (.github/dependabot.yml or Renovate config).',
     'P4.6': 'Add issue templates (.github/ISSUE_TEMPLATE/) for bug reports and feature requests.',
     'P4.7': 'Add a PR template (.github/PULL_REQUEST_TEMPLATE.md) with a reviewer checklist.',
+    'P4.8': 'Add an issue labeling system (.github/labels.yml) with priority, type, and area labels.',
+    'P4.9': 'Add release automation: CD workflow (.github/workflows/release.yml) or semantic-release/changesets config.',
     'P5.1': 'Configure a linter: install eslint/biome/ruff as devDependency, create config, add `lint` script.',
     'P5.2': 'Configure a formatter (Prettier / Black / gofmt). Install as devDependency and add a `format` script.',
     'P5.3': 'Configure a type checker: create tsconfig.json with strict mode, or mypy/pyright config.',
     'P5.6': 'Enable strict typing: set `"strict": true` in tsconfig.json or `strict = true` in mypy config.',
+    'P5.7': 'Add naming consistency rules: configure ESLint @typescript-eslint/naming-convention or document conventions in AGENTS.md.',
+    'P5.8': 'Add dead code detection: install knip (TS) or vulture (Py) as devDependency and create config.',
+    'P5.9': 'Add duplicate code detection: install jscpd as devDependency and create .jscpd.json config.',
+    'P5.10': 'Add cyclomatic complexity analysis: configure ESLint complexity rule or radon/lizard in CI.',
+    'P5.11': 'Add unused dependencies detection: install depcheck (TS) or deptry (Py) and add a CI check.',
+    'P5.12': 'Add large file detection: configure .gitattributes with LFS or linter max-lines rules.',
     'P6.1': 'Harden .gitignore to cover .env, *.pem, *.key, node_modules/, dist/ (>=3 patterns).',
     'P6.2': 'Remove committed secrets from tracked files. Use `git rm --cached` and rotate exposed credentials.',
     'P6.4': 'Wire a vulnerability scan (npm audit / pip-audit / gitleaks) into CI or pre-commit.',
+    'P7.5': 'Add distributed tracing: install OpenTelemetry SDK or configure X-Request-ID headers.',
+    'P7.6': 'Add metrics collection: install Datadog/Prometheus/StatsD client and instrument key paths.',
+    'P7.7': 'Add error tracking: install Sentry/Bugsnag/Rollbar and configure source maps.',
+    'P7.8': 'Add product analytics: install Mixpanel/Amplitude/PostHog SDK and instrument key events.',
+    'P7.9': 'Add runbooks: create a runbooks/ directory or document incident response procedures.',
     'P8.1': 'Add .env.example listing required env vars with placeholder values.',
     'P8.2': 'Add a one-command setup script (`npm run setup` or `make setup`).',
+    'P8.6': 'Add local services setup: create docker-compose.yml for local dependencies (Postgres, Redis, etc.).',
   };
 
   const items = topItems.map((c) => {
@@ -159,6 +180,16 @@ ${remainingCount > 0 ? `\nAfter these ${topItems.length} fixes, ${remainingCount
 ## Failing checks (top ${topItems.length})
 
 ${items}
+
+## Quality standards (from Droid trace analysis)
+Your fix must **genuinely improve the codebase**. Do NOT use workarounds or shortcuts:
+- **NO** empty placeholder files (e.g., empty test files, stub configs)
+- **NO** minimal implementations that technically pass but provide no real value
+- **NO** disabling checks or adding skip markers to pass validation
+- **NO** trivial changes that game the metric without improving quality
+
+**BAD**: Adding an empty \`test.js\` file to satisfy "has tests". Creating a \`.eslintrc\` that disables all rules.
+**GOOD**: Writing actual unit tests with meaningful assertions. Configuring ESLint with appropriate rules for the project.
 
 ## Safety
 - Never commit secrets or remove existing tests.
