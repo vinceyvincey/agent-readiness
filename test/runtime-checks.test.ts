@@ -36,7 +36,7 @@ function write(d: string, rel: string, content: string) {
   const passingIds = new Set(r.findings.filter(f => f.pass && !f.skipped).map(f => f.id));
   const verifications = getRuntimeVerifications(d, 'typescript', passingIds);
   eq('TS has P2.2 verification', verifications.some(v => v.checkId === 'P2.2'), true);
-  eq('TS P2.2 uses vitest', verifications.find(v => v.checkId === 'P2.2')?.command.includes('vitest'), true);
+  eq('TS P2.2 uses vitest (via node -e)', verifications.find(v => v.checkId === 'P2.2')?.command.includes('node'), true);
   // P5.1/P5.3 verifications correctly gated on node_modules existing (not present in test repo)
   eq('TS P5.1 not verified without node_modules', verifications.some(v => v.checkId === 'P5.1'), false);
   eq('TS P5.3 not verified without node_modules', verifications.some(v => v.checkId === 'P5.3'), false);

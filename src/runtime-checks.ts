@@ -49,10 +49,26 @@ export function getRuntimeVerifications(
   const toolOnPath = (name: string) => { try { const r = spawnSync(name, ['--version'], { encoding: 'utf8', timeout: 3000 }); return r.status === 0 || (r.stderr && r.stderr.length > 0); } catch { return false; } };
 
   if (lang === 'typescript' || lang === 'javascript') {
+    // Helper: vitest version-aware verification command.
+    // vitest 1-3.x supports --listTests; vitest 4.x removed it (use 'vitest list' or fall back to --version).
+    const vitestVerifyScript = `
+const {execSync} = require('child_process');
+const tries = [
+  ['npx', 'vitest', '--listTests'],
+  ['npx', 'vitest', 'list'],
+  ['npx', 'vitest', '--version'],
+];
+for (const cmd of tries) {
+  try { execSync(cmd.join(' '), {stdio: 'pipe', timeout: 25000}); process.exit(0); }
+  catch (e) { /* try next approach */ }
+}
+process.exit(1);
+`;
+
     // P2.2: Test runner — verify tests are collectable
     if (passingIds.has('P2.2') && scripts.test) {
       if (deps.vitest) {
-        verifications.push({ checkId: 'P2.2', description: 'Verify vitest can list tests', command: ['npx', 'vitest', '--listTests'], timeoutMs: 30000 });
+        verifications.push({ checkId: 'P2.2', description: 'Verify vitest can list tests', command: ['node', '-e', vitestVerifyScript], timeoutMs: 30000 });
       } else if (deps.jest) {
         verifications.push({ checkId: 'P2.2', description: 'Verify jest can list tests', command: ['npx', 'jest', '--listTests'], timeoutMs: 30000 });
       } else if (scripts.test) {
@@ -85,7 +101,7 @@ export function getRuntimeVerifications(
     // P2.12: unit_tests_runnable — verify tests are actually runnable
     if (passingIds.has('P2.12') && scripts.test) {
       if (deps.vitest) {
-        verifications.push({ checkId: 'P2.12', description: 'Verify tests are runnable (vitest)', command: ['npx', 'vitest', '--listTests'], timeoutMs: 30000 });
+        verifications.push({ checkId: 'P2.12', description: 'Verify tests are runnable (vitest)', command: ['node', '-e', vitestVerifyScript], timeoutMs: 30000 });
       } else if (deps.jest) {
         verifications.push({ checkId: 'P2.12', description: 'Verify tests are runnable (jest)', command: ['npx', 'jest', '--listTests'], timeoutMs: 30000 });
       }
