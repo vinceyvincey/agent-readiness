@@ -1,0 +1,56 @@
+# IMPLEMENTATION_PLAN.md
+
+> Milestones + acceptance criteria for building a pi-native agent-readiness framework in this repo.
+
+## M0 - Foundation (canonical) - DONE
+- Research committed (Exa web + Context7 doc extraction).
+- docs/FRAMEWORK.md (10 pillars, L0-L5, 80% N-1 gating, scoring).
+- docs/RESEARCH_LANDSCAPE.md, docs/PI_ARCHITECTURE.md.
+- Git repo initialized + README.
+
+## M1 - Scaffolding
+- [ ] skills/agent-readiness/SKILL.md with valid frontmatter (name, description).
+- [ ] criteria/: 10 pillar files, each: purpose + ~5-10 checks (deterministic + judgment).
+- [ ] references/FRAMEWORK pointer.
+- Verify: pi discovers the skill; /skill:agent-readiness loads without validation warnings.
+
+## M2 - Deterministic engine (extension core)
+- [ ] src/engine.ts: scan target dir -> { per-file, per-pillar %, overall, level, findings }.
+- [ ] 80% N-1 gating, configurable weights.
+- [ ] report.md + report.json output.
+- Verify: engine on this repo yields a scorable report; level logic passes unit tests.
+
+## M3 - Extension surface + CI gate
+- [ ] /readiness-report, /readiness-fix commands.
+- [ ] readiness_check tool (callable from any pi session).
+- [ ] check --json --strict exits non-zero when required scopes missing (CI-gateable).
+- [ ] --fix drafts remediation for high-priority failed checks.
+- Verify: run on this repo; --strict exit code correct.
+
+## M4 - History + evaluation
+- [ ] .agent-readiness/history.json per repo; trend compare.
+- [ ] Optional HTML/README badge.
+- Verify: two runs produce diffable history; .agent-readiness git-ignored.
+
+## M5 - Validation & dogfood
+- [ ] Symlink/install docs (skills + extension).
+- [ ] pi package metadata (packages.md-style) for npm/git distribution.
+- [ ] Dogfood: run on this repo and on a real project; apply readiness-fix; re-score.
+- Verify: target repo's score improves after --fix is applied.
+
+## Post-critical-review constraints (feed M2/M3)
+- Level identity = set of pillar gates + Mandatory flags (P2, P6); no singleton '80% aggregate'.
+- Deterministic score separate from judgment narrative.
+- rubric_version + config hash + freshness in every report/history.
+- Engine single-source scoring; skill only orchestrates.
+- Dry-run default; .agent-readiness/ git-ignored writable opt-in.
+Note: apply these in M2/M3 so they're built in, not bolted on.
+
+## Cross-cutting acceptance criteria
+- No third-party runtime for the skill-only path (pi can run files system shell builtins).
+- Every deterministic check documented: file glob + evidence rule + pass/fail.
+- Reports diffable (stable ordering, sorted).
+- Licensing/attribution of OSS ideas tracked (docs/CREDITS).
+
+## Definition of done
+/readiness-report on any repo returns: level, per-pillar scores, high-priority actionable punchlist, and (with --strict) a CI-gateable exit code - deterministic and reproducible by humans and automation.
