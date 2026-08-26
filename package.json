@@ -1,0 +1,16 @@
+{
+  "name": "agent-readiness",
+  "version": "0.1.0",
+  "description": "pi-native framework to measure and improve how ready a codebase is for autonomous AI coding agents (skill + extension + deterministic engine).",
+  "keywords": ["pi-package", "agent-readiness", "ai", "code-quality", "mcp"],
+  "license": "MIT",
+  "type": "module",
+  "pi": {
+    "extensions": [".pi/extensions"],
+    "skills": ["skills"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*"
+  }
+}

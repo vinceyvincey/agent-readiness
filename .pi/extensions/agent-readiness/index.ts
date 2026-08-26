@@ -1,15 +1,29 @@
 // agent-readiness pi extension: /readiness-report, /readiness-fix, readiness_check tool.
 import { Type } from '@earendil-works/pi-ai';
 import { defineTool, type ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { runReadiness, writeReport, renderMarkdown } from '../../../src/engine.ts';
+
+// Engine lives at repo-root /src in dev, or bundled next to the extension in a package.
+// Try both so the extension works in-repo AND when installed as a pi package.
+async function loadEngine() {
+  const here = new URL('.', import.meta.url).pathname; // .../.pi/extensions/agent-readiness/
+  const candidates = [
+    here + '../../../src/engine.ts',   // in-repo dev layout
+    here + 'engine.ts',                // bundled package layout
+  ];
+  for (const c of candidates) {
+    try { return await import(c); } catch { /* try next */ }
+  }
+  throw new Error('agent-readiness engine not found (tried ' + candidates.join(', ') + ')');
+}
 
 export default function (pi: ExtensionAPI) {
   const reportCommand = async (args: string, ctx: any) => {
     const target = (args && args.trim()) || ctx.cwd;
-    const report = runReadiness(target, { model: ctx.model?.id || 'pi' });
-    const dir = writeReport(target, report);
+    const engine = await loadEngine();
+    const report = engine.runReadiness(target, { model: ctx.model?.id || 'pi' });
+    const dir = engine.writeReport(target, report);
     ctx.ui.notify(`Readiness ${report.level} (${report.overall}/100) -> ${dir}`, report.level !== 'L0' ? 'info' : 'warning');
-    return renderMarkdown(report);
+    return engine.renderMarkdown(report);
   };
 
   pi.registerCommand('readiness-report', {
@@ -21,7 +35,8 @@ export default function (pi: ExtensionAPI) {
     description: 'Show the high-priority remediation punchlist to apply.',
     handler: async (args, ctx) => {
       const target = (args && args.trim()) || ctx.cwd;
-      const report = runReadiness(target, { model: ctx.model?.id || 'pi' });
+      const engine = await loadEngine();
+      const report = engine.runReadiness(target, { model: ctx.model?.id || 'pi' });
       const top = report.punchlist.filter((p: any) => p.severity === 'high').slice(0, 5);
       if (!top.length) { ctx.ui.notify('No high-priority remediation needed.', 'info'); return 'No high-priority remediation.'; }
       return top.map((p: any) => `[${p.pillar} ${p.id}] ${p.action}`).join('\n');
@@ -38,7 +53,8 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_id, params, _sig, _up, ctx) {
       const target = params.path || ctx.cwd;
-      const report = runReadiness(target, { model: ctx.model?.id || 'pi', strict: params.strict });
+      const engine = await loadEngine();
+      const report = engine.runReadiness(target, { model: ctx.model?.id || 'pi', strict: params.strict });
       return {
         content: [{ type: 'text', text: JSON.stringify(report, null, 2) }],
         details: { level: report.level, overall: report.overall },

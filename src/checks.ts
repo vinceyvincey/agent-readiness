@@ -22,7 +22,7 @@ const anyPatt = (r: Repo, names: string[], candidates: string[][] = [names]) =>
 
 // package-ish manifest names
 const PKG = ['package.json', 'pyproject.toml', 'go.mod', 'Cargo.toml', 'requirements.txt', 'composer.json', 'pubspec.yaml', 'Gemfile', 'mix.exs', 'pom.xml', 'build.gradle'];
-const LOCK = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock', 'Cargo.lock', 'go.sum', 'pipfile.lock', 'Gemfile.lock', 'composer.lock', 'yarn.lock', 'mix.lock'];
+const LOCK = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock', 'Pipfile.lock', 'requirements.lock', 'Cargo.lock', 'go.sum', 'Gemfile.lock', 'composer.lock', 'mix.lock'];
 const TESTDIRS = ['test', 'tests', '__tests__', 'spec', 'specs'];
 
 const C: Array<() => Pillar> = [
@@ -44,17 +44,17 @@ const C: Array<() => Pillar> = [
   () => ({ id: 'P2', checks: [
     (r) => ({ id: 'P2.1', pillar: 'P2', pass: dirs(r).some((d) => TESTDIRS.includes(d)) || dirs(r).some((f) => /(_test|_spec|\.test|\.spec)\./.test(f)), evidence: 'test files/dir', severity: 'high' }),
     (r) => ({ id: 'P2.2', pillar: 'P2', pass: /"test"\s*[:=]|jest|vitest|pytest|cypress|make test/i.test(read(r, ...PKG.filter(p=>has(r,p)).slice(0,1)) as string) || has(r, 'jest.config', 'vitest.config', 'pytest.ini'), evidence: 'test config', severity: 'high' }),
-    (r) => ({ id: 'P2.3', pillar: 'P2', pass: /"test"/.test(read(r, 'package.json')) || has(r, 'Makefile'), evidence: 'run-test one-liner', severity: 'high' }),
-    (r) => ({ id: 'P2.4', pillar: 'P2', pass: (()=>{ const c=read(r,'package.json'); return /coverage\s*[:=]\s*[1-9]/.test(c) || /--coverage/.test(c) || has(r,'.nycrc','coveragerc'); })(), evidence: 'coverage threshold', severity: 'med' }),
+    (r) => ({ id: 'P2.3', pillar: 'P2', pass: /"test"/.test(read(r, 'package.json')) || has(r, 'Makefile') || has(r,'pytest.ini') || /\[tool.pytest|pytest|coverage/.test(read(r,'pyproject.toml')), evidence: 'run-test one-liner', severity: 'high' }),
+    (r) => ({ id: 'P2.4', pillar: 'P2', pass: (()=>{ const c=read(r,'package.json'); const py=read(r,'pyproject.toml')+read(r,'tox.ini')+read(r,'.coveragerc'); return /coverage\s*[:=]\s*[1-9]/.test(c) || /--coverage/.test(c) || has(r,'.nycrc','coveragerc') || /\[tool.coverage|fail_under/.test(py); })(), evidence: 'coverage threshold', severity: 'med' }),
     (r) => ({ id: 'P2.5', pillar: 'P2', pass: dirs(r).some((d)=>['fixtures','testdata','__fixtures__'].includes(d)) , evidence: 'fixtures', severity: 'low' }),
-    (r) => ({ id: 'P2.6', pillar: 'P2', pass: /\^|<test>|--runInBand|--watch/i.test(read(r, 'package.json')) || has(r,'vitest.config','jest.config'), evidence: 'fast/smoke path', severity: 'med' }),
+    (r) => ({ id: 'P2.6', pillar: 'P2', pass: /\^|<test>|--runInBand|--watch/i.test(read(r, 'package.json')) || has(r,'vitest.config','jest.config') || /-m\s*\"?(fast|smoke)?/.test(read(r,'pyproject.toml')+read(r,'Makefile')), evidence: 'fast/smoke path', severity: 'med' }),
   ]}),
   () => ({ id: 'P3', checks: [
     (r) => ({ id: 'P3.1', pillar: 'P3', pass: LOCK.some((l)=>has(r,l)), evidence: 'lockfile', severity: 'high' }),
     (r) => ({ id: 'P3.2', pillar: 'P3', pass: /"build"\s*[:=]/.test(read(r,'package.json')) || /build/i.test(read(r,'Makefile')) || has(r,'Dockerfile'), evidence: 'build step', severity: 'high' }),
-    (r) => ({ id: 'P3.3', pillar: 'P3', pass: /"(build|start)"\s*[:=]/.test(read(r,'package.json')) || has(r,'Makefile'), evidence: 'root scripts', severity: 'med' }),
+    (r) => ({ id: 'P3.3', pillar: 'P3', pass: /"(build|start)"\s*[:=]/.test(read(r,'package.json')) || has(r,'Makefile') || /\[project\.scripts|\[tool\.hatch|console_scripts|entry.?points/.test(read(r,'pyproject.toml')), evidence: 'root scripts', severity: 'med' }),
     (r) => ({ id: 'P3.4', pillar: 'P3', pass: PKG.some((p)=>has(r,p)), evidence: 'dependency manifest', severity: 'high' }),
-    (r) => ({ id: 'P3.6', pillar: 'P3', pass: /devDependencies|dev\s*=|requirements-dev|group\s*dev/i.test(read(r,'package.json')) || /^dev/i.test(read(r,'requirements.txt')) || has(r,'requirements-dev.txt'), evidence: 'dev/prod split', severity: 'low' }),
+    (r) => ({ id: 'P3.6', pillar: 'P3', pass: /devDependencies|dev\s*=|requirements-dev|group\s*dev/i.test(read(r,'package.json')) || /^dev/i.test(read(r,'requirements.txt')) || has(r,'requirements-dev.txt') || /\[tool\.poetry\.group\.dev|dev\s*=\s*\[/.test(read(r,'pyproject.toml')), evidence: 'dev/prod split', severity: 'low' }),
   ]}),
   () => ({ id: 'P4', checks: [
     (r) => ({ id: 'P4.1', pillar: 'P4', pass: has(r,'.github','workflows') || has(r,'.gitlab-ci.yml') || has(r,'.circleci') || has(r,'Jenkinsfile'), evidence: 'CI workflow', severity: 'high' }),

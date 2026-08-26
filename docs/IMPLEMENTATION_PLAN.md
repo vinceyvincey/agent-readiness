@@ -41,11 +41,14 @@
 - [x] Commit smoke runs to docs/validation/M45.md.
 - Note: H1/H2 full validation needs >=10 repos / >=5 per cohort (M5); E1 preconditions (H3,H5,H8) already passing.
 
-## M5 - Validation & dogfood
-- [ ] Symlink/install docs (skills + extension).
-- [ ] pi package metadata (packages.md-style) for npm/git distribution.
-- [ ] Dogfood: run on this repo and on a real project; apply readiness-fix; re-score.
-- Verify: target repo's score improves after --fix is applied.
+## M5 - Validation & dogfood - DONE
+- [x] docs/INSTALL.md - symlink + pi-package install instructions.
+- [x] pi package metadata (package.json pi manifest: extensions + skills; peerDeps).
+- [x] package-load resilient extension (engine path fallback); verified boots as pi package.
+- [x] Dogfood on real projects: pdf-mcp (python) surfaced language-bias bugs -> FIXED engine (python pytest/lockfile awareness); pdf-mcp 51.7 -> 59.
+- [x] Fix-loop demo: applied auto-generated AGENTS.md to pdf-mcp copy -> 59 -> 67 (P1 0->60). Satisfies "score improves after --fix".
+- [x] Dogfood on this repo: L0/26.3 (mandatory P2 gate holds - correct).
+- Verify: score improves after --fix on a real project (pdf-mcp copy 59->67); engine tests pass; package installs/loads as a pi package.
 
 ## Post-critical-review constraints (feed M2/M3)
 - Level identity = set of pillar gates + Mandatory flags (P2, P6); no singleton '80% aggregate'.
