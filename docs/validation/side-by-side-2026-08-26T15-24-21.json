@@ -1,0 +1,2257 @@
+[
+  {
+    "repo": "high",
+    "pi": {
+      "level": "L0",
+      "overall": 53.6,
+      "findings": [
+        {
+          "id": "P0.1",
+          "pillar": "P0",
+          "pass": true,
+          "evidence": "README.md 553b, 7 content lines",
+          "severity": "high",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P0.2",
+          "pillar": "P0",
+          "pass": true,
+          "evidence": "run/usage section",
+          "severity": "high",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P0.3",
+          "pillar": "P0",
+          "pass": true,
+          "evidence": "docs or ARCHITECTURE",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P0.4",
+          "pillar": "P0",
+          "pass": true,
+          "evidence": "changelog or version",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P0.5",
+          "pillar": "P0",
+          "pass": true,
+          "evidence": "examples dir",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P0.6",
+          "pillar": "P0",
+          "pass": true,
+          "evidence": "H1 in README",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P0.7",
+          "pillar": "P0",
+          "pass": true,
+          "evidence": "docs modified within 180 days",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P0.8",
+          "pillar": "P0",
+          "pass": false,
+          "evidence": "automated doc generation config",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P0.9",
+          "pillar": "P0",
+          "pass": false,
+          "evidence": "API schema docs",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P1.1",
+          "pillar": "P1",
+          "pass": true,
+          "evidence": "AGENTS.md 169b, 4 content lines",
+          "severity": "high",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P1.2",
+          "pillar": "P1",
+          "pass": true,
+          "evidence": "AGENTS rules + 2 command(s) verified",
+          "severity": "high",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P1.3",
+          "pillar": "P1",
+          "pass": true,
+          "evidence": "contrib docs",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P1.4",
+          "pillar": "P1",
+          "pass": true,
+          "evidence": "agent config/MCP",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P1.5",
+          "pillar": "P1",
+          "pass": true,
+          "evidence": "task shortcut",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P1.6",
+          "pillar": "P1",
+          "pass": true,
+          "evidence": "droid/pi lifecycle hooks",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P1.7",
+          "pillar": "P1",
+          "pass": true,
+          "evidence": "custom droids/subagents",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P1.8",
+          "pillar": "P1",
+          "pass": true,
+          "evidence": "connectors integration",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P1.9",
+          "pillar": "P1",
+          "pass": false,
+          "evidence": "AGENTS.md validation automation",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P2.1",
+          "pillar": "P2",
+          "pass": true,
+          "evidence": "test files/dir",
+          "severity": "high",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P2.2",
+          "pillar": "P2",
+          "pass": true,
+          "evidence": "test config",
+          "severity": "high",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P2.3",
+          "pillar": "P2",
+          "pass": true,
+          "evidence": "run-test one-liner",
+          "severity": "high",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P2.4",
+          "pillar": "P2",
+          "pass": true,
+          "evidence": "coverage threshold configured",
+          "severity": "med",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P2.5",
+          "pillar": "P2",
+          "pass": true,
+          "evidence": "fixtures",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P2.6",
+          "pillar": "P2",
+          "pass": true,
+          "evidence": "test runner present",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P2.7",
+          "pillar": "P2",
+          "pass": false,
+          "evidence": "integration/e2e test config",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P2.8",
+          "pillar": "P2",
+          "pass": false,
+          "evidence": "no test naming config",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P2.9",
+          "pillar": "P2",
+          "pass": false,
+          "evidence": "no isolation config",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P2.10",
+          "pillar": "P2",
+          "pass": true,
+          "evidence": "skipped: gh-CLI flaky detection not available on this repo",
+          "severity": "low",
+          "difficulty": "advanced",
+          "skipped": true
+        },
+        {
+          "id": "P2.11",
+          "pillar": "P2",
+          "pass": false,
+          "evidence": "no test performance tracking",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P3.1",
+          "pillar": "P3",
+          "pass": true,
+          "evidence": "lockfile",
+          "severity": "high",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P3.2",
+          "pillar": "P3",
+          "pass": true,
+          "evidence": "build step",
+          "severity": "high",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P3.3",
+          "pillar": "P3",
+          "pass": true,
+          "evidence": "root scripts",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P3.4",
+          "pillar": "P3",
+          "pass": true,
+          "evidence": "dependency manifest",
+          "severity": "high",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P3.6",
+          "pillar": "P3",
+          "pass": false,
+          "evidence": "dev/prod split",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P3.7",
+          "pillar": "P3",
+          "pass": true,
+          "evidence": "gh CLI authenticated",
+          "severity": "med",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P3.8",
+          "pillar": "P3",
+          "pass": true,
+          "evidence": "skipped: single-app repo",
+          "severity": "low",
+          "difficulty": "advanced",
+          "skipped": true
+        },
+        {
+          "id": "P3.9",
+          "pillar": "P3",
+          "pass": true,
+          "evidence": "skipped: single-app repo",
+          "severity": "low",
+          "difficulty": "advanced",
+          "skipped": true
+        },
+        {
+          "id": "P3.10",
+          "pillar": "P3",
+          "pass": false,
+          "evidence": "no min release age policy",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P4.1",
+          "pillar": "P4",
+          "pass": true,
+          "evidence": "CI workflow",
+          "severity": "high",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P4.2",
+          "pillar": "P4",
+          "pass": true,
+          "evidence": "2 workflow(s), test=true, lint=false",
+          "severity": "med",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P4.3",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "pre-commit hooks",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P4.4",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "ownership/rulesets",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P4.5",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "dep checker",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P4.6",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "issue templates",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P4.7",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "PR templates",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P4.8",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "issue labeling system",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P4.9",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "release automation config",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P4.10",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "no CI caching detected",
+          "severity": "med",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P4.11",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "no build performance tracking",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P4.12",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "no deployment automation",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P4.13",
+          "pillar": "P4",
+          "pass": true,
+          "evidence": "skipped: backlog health requires gh API access to issues",
+          "severity": "low",
+          "difficulty": "advanced",
+          "skipped": true
+        },
+        {
+          "id": "P4.14",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "feature flag infrastructure",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P4.15",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "release notes automation",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P4.16",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "progressive rollout configured",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P4.17",
+          "pillar": "P4",
+          "pass": false,
+          "evidence": "rollback automation",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P5.1",
+          "pillar": "P5",
+          "pass": true,
+          "evidence": "linter",
+          "severity": "high",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P5.2",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "formatter",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P5.3",
+          "pillar": "P5",
+          "pass": true,
+          "evidence": "type check config",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.4",
+          "pillar": "P5",
+          "pass": true,
+          "evidence": "no mega-files",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.5",
+          "pillar": "P5",
+          "pass": true,
+          "evidence": "consistent config",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P5.6",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "no strict typing config",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.7",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "naming consistency rules",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.8",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "dead code detection tooling",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.9",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "duplicate code detection tooling",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.10",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "cyclomatic complexity analysis",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P5.11",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "unused dependencies detection",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.12",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "large file detection tooling",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.13",
+          "pillar": "P5",
+          "pass": true,
+          "evidence": "skipped: code quality metrics require gh API or config",
+          "severity": "low",
+          "difficulty": "advanced",
+          "skipped": true
+        },
+        {
+          "id": "P5.14",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "tech debt tracking tooling",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P5.15",
+          "pillar": "P5",
+          "pass": true,
+          "evidence": "skipped: no feature flag platform (prerequisite)",
+          "severity": "low",
+          "difficulty": "advanced",
+          "skipped": true
+        },
+        {
+          "id": "P5.16",
+          "pillar": "P5",
+          "pass": false,
+          "evidence": "heavy dependency / bundle size detection",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P6.1",
+          "pillar": "P6",
+          "pass": true,
+          "evidence": ".gitignore 5 patterns",
+          "severity": "high",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P6.2",
+          "pillar": "P6",
+          "pass": true,
+          "evidence": "scanned 25 tracked files, no secret patterns",
+          "severity": "high",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P6.3",
+          "pillar": "P6",
+          "pass": true,
+          "evidence": "no tracked .env (git-aware)",
+          "severity": "high",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P6.4",
+          "pillar": "P6",
+          "pass": false,
+          "evidence": "no vuln scan",
+          "severity": "med",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P6.5",
+          "pillar": "P6",
+          "pass": true,
+          "evidence": "credential pattern",
+          "severity": "low",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P6.6",
+          "pillar": "P6",
+          "pass": false,
+          "evidence": "no branch protection rulesets",
+          "severity": "med",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P6.7",
+          "pillar": "P6",
+          "pass": true,
+          "evidence": "skipped: code-scanning requires gh API admin access",
+          "severity": "low",
+          "difficulty": "advanced",
+          "skipped": true
+        },
+        {
+          "id": "P6.8",
+          "pillar": "P6",
+          "pass": false,
+          "evidence": "privacy compliance infrastructure",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P6.9",
+          "pillar": "P6",
+          "pass": false,
+          "evidence": "DAST scanning in CI",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P7.1",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "structured logging",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.2",
+          "pillar": "P7",
+          "pass": true,
+          "evidence": "no silent errors",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.3",
+          "pillar": "P7",
+          "pass": true,
+          "evidence": "mock/dev path",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.4",
+          "pillar": "P7",
+          "pass": true,
+          "evidence": "log level config",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.5",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "distributed tracing",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.6",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "metrics collection",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.7",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "error tracking",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.8",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "product analytics",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.9",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "runbooks documented",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P7.10",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "alerting configured",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.11",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "deployment observability",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.12",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "health check endpoints/probes",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P7.13",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "profiling instrumentation",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P7.14",
+          "pillar": "P7",
+          "pass": false,
+          "evidence": "error-to-insight pipeline",
+          "severity": "low",
+          "difficulty": "advanced"
+        },
+        {
+          "id": "P8.1",
+          "pillar": "P8",
+          "pass": true,
+          "evidence": ".env.example",
+          "severity": "high",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P8.2",
+          "pillar": "P8",
+          "pass": true,
+          "evidence": "one-command setup",
+          "severity": "high",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P8.3",
+          "pillar": "P8",
+          "pass": false,
+          "evidence": "devcontainer/docker",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P8.4",
+          "pillar": "P8",
+          "pass": true,
+          "evidence": "pinned version",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P8.5",
+          "pillar": "P8",
+          "pass": true,
+          "evidence": "non-GUI run",
+          "severity": "low",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P8.6",
+          "pillar": "P8",
+          "pass": false,
+          "evidence": "local services setup",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P8.7",
+          "pillar": "P8",
+          "pass": false,
+          "evidence": "interactive QA path documented",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P8.8",
+          "pillar": "P8",
+          "pass": false,
+          "evidence": "database schema files",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P9.1",
+          "pillar": "P9",
+          "pass": true,
+          "evidence": "entry points",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P9.2",
+          "pillar": "P9",
+          "pass": true,
+          "evidence": "legible repo shape",
+          "severity": "med",
+          "difficulty": "intermediate"
+        },
+        {
+          "id": "P9.3",
+          "pillar": "P9",
+          "pass": true,
+          "evidence": "module boundaries",
+          "severity": "med",
+          "difficulty": "basic"
+        },
+        {
+          "id": "P9.4",
+          "pillar": "P9",
+          "pass": false,
+          "evidence": "per-module docs",
+          "severity": "low",
+          "difficulty": "basic"
+        }
+      ],
+      "punchlist": [
+        {
+          "pillar": "P4",
+          "id": "P4.3",
+          "severity": "med",
+          "difficulty": "basic",
+          "action": "No mapped remediation",
+          "evidence": "pre-commit hooks"
+        },
+        {
+          "pillar": "P4",
+          "id": "P4.4",
+          "severity": "med",
+          "difficulty": "basic",
+          "action": "No mapped remediation",
+          "evidence": "ownership/rulesets"
+        },
+        {
+          "pillar": "P4",
+          "id": "P4.6",
+          "severity": "med",
+          "difficulty": "basic",
+          "action": "Add issue templates (.github/ISSUE_TEMPLATE/) for bug reports and feature requests.",
+          "evidence": "issue templates"
+        },
+        {
+          "pillar": "P5",
+          "id": "P5.2",
+          "severity": "med",
+          "difficulty": "basic",
+          "action": "No mapped remediation",
+          "evidence": "formatter"
+        },
+        {
+          "pillar": "P7",
+          "id": "P7.9",
+          "severity": "med",
+          "difficulty": "basic",
+          "action": "Add runbooks: create a runbooks/ directory or document incident response procedures.",
+          "evidence": "runbooks documented"
+        },
+        {
+          "pillar": "P8",
+          "id": "P8.3",
+          "severity": "med",
+          "difficulty": "basic",
+          "action": "No mapped remediation",
+          "evidence": "devcontainer/docker"
+        },
+        {
+          "pillar": "P8",
+          "id": "P8.6",
+          "severity": "med",
+          "difficulty": "basic",
+          "action": "Add local services setup: create docker-compose.yml for local dependencies (Postgres, Redis, etc.).",
+          "evidence": "local services setup"
+        },
+        {
+          "pillar": "P0",
+          "id": "P0.9",
+          "severity": "med",
+          "difficulty": "intermediate",
+          "action": "Add API schema docs: create openapi.json/swagger.yaml or GraphQL schema file.",
+          "evidence": "API schema docs"
+        },
+        {
+          "pillar": "P2",
+          "id": "P2.7",
+          "severity": "med",
+          "difficulty": "intermediate",
+          "action": "Add integration/e2e tests: install cypress or playwright and create config.",
+          "evidence": "integration/e2e test config"
+        },
+        {
+          "pillar": "P4",
+          "id": "P4.5",
+          "severity": "med",
+          "difficulty": "intermediate",
+          "action": "No mapped remediation",
+          "evidence": "dep checker"
+        }
+      ],
+      "agentPrompt": "You are remediating agent-readiness failures in a codebase.\n\nCurrent readiness: L0 (53.6/100), rubric 0.7.0.\nLanguage: typescript. Repo: /tmp/side-by-side/high\n\n\n## Scoring model (deterministic floor, agent ceiling)\n\nThe deterministic engine has already scored this repo (the score above is the **floor**). Your job is to:\n1. **Verify**: For each failing check below, run the actual command to confirm it truly fails. If it passes behaviorally (e.g., vitest.config.ts exists AND `npm test` runs successfully), note it as a false positive.\n2. **Discover**: Check the 7 agent-only criteria listed in the \"Additional criteria\" section. These require runtime verification, API access, or code analysis — things the deterministic engine can't do.\n3. **Augment**: The final score is:\n   - **Raised** if you verify a failing check actually works (deterministic false positive)\n   - **Lowered** if you find a passing check that doesn't actually work (decorative config)\n   - **Extended** if you find agent-only criteria that fail (not in the original score)\n4. **Fix**: Remediate verified failures, starting with highest-severity.\n5. **Re-run**: After fixes, re-run the deterministic engine to get the new floor score.\n\n## Strategy\nFocus on the 5 highest-leverage fixes below (sorted by severity, then difficulty). For each one:\n1. Read the existing code and config to understand current conventions before writing anything.\n2. Create or modify the specific file(s) needed — **install real dependencies** (e.g., `npm install -D vitest eslint`), not just config stubs.\n3. **Verify the fix works**: run the actual command (e.g., `npm test`, `npm run lint`, `tsc --noEmit`) and confirm it exits 0.\n4. **Negative-test where possible**: introduce a deliberate violation (e.g., a type error, an unused variable), confirm the tool catches it, then remove the violation. This proves the fix is real, not decorative.\n5. **Commit after each successful fix** with a descriptive message (e.g., \"Add strict TypeScript type checking setup\").\n6. Only touch files directly relevant to the failing check — do not refactor unrelated code.\n\nAfter these 5 fixes, 48 more failing checks remain. Re-run the readiness engine to see the updated punchlist.\n\n## Failing checks (top 5, with full criterion context)\n\n### P4 P4.3 [med/basic]\n**Evidence**: pre-commit hooks\n**Description**: Husky/lint-staged for TS, .pre-commit-config.yaml with ruff/black for Py.\n**Evaluation**: Pre-commit hooks – Husky/lint-staged for TS, .pre-commit-config.yaml with ruff/black for Py.\n**Fix**: Add pre-commit hooks (husky + lint-staged or .pre-commit-config.yaml) to enforce lint/format on commit.\n\n### P4 P4.4 [med/basic]\n**Evidence**: ownership/rulesets\n**Description**: in root or .github/ directory with valid team assignments\n**Evaluation**: CODEOWNERS file exists – in root or .github/ directory with valid team assignments\n**Fix**: Add a CODEOWNERS file (.github/CODEOWNERS) defining code ownership and review rules.\n\n### P4 P4.6 [med/basic]\n**Evidence**: issue templates\n**Description**: .github/ISSUE_TEMPLATE/ (GitHub) or .gitlab/issue_templates/ (GitLab) directory exists with structured templates for bugs, features, etc. Teaches agents what information to provide when creating issues.\n**Evaluation**: Issue templates – .github/ISSUE_TEMPLATE/ (GitHub) or .gitlab/issue_templates/ (GitLab) directory exists with structured templates for bugs, features, etc. Teaches agents what information to provide when creating issues.\n**Fix**: Add issue templates (.github/ISSUE_TEMPLATE/) for bug reports and feature requests.\n\n### P5 P5.2 [med/basic]\n**Evidence**: formatter\n**Description**: Prettier (.prettierrc*) for TS, Black ([tool.black] in pyproject.toml) for Py.\n**Evaluation**: Formatter – Prettier (.prettierrc*) for TS, Black ([tool.black] in pyproject.toml) for Py.\n**Fix**: Configure a formatter (Prettier / Black / gofmt). Install as devDependency and add a `format` script.\n\n### P7 P7.9 [med/basic]\n**Evidence**: runbooks documented\n**Description**: Look for external pointers to runbooks/playbooks (links to Notion, Confluence, internal wiki, or dedicated runbooks/ directory). Check README, AGENTS.md, or docs/ for references to incident response procedures. PASS if any documentation points to runbooks, even if hosted externally.\n**Evaluation**: Runbooks documented – Look for external pointers to runbooks/playbooks (links to Notion, Confluence, internal wiki, or dedicated runbooks/ directory). Check README, AGENTS.md, or docs/ for references to incident response procedures. PASS if any documentation points to runbooks, even if hosted extern\n**Fix**: Add runbooks: create a runbooks/ directory or document incident response procedures.\n\n## Additional criteria (agent-only, not covered by deterministic engine)\n\nThe deterministic engine checks 47 of Droid's 84 criteria. The following 7 criteria require\nagent reasoning (runtime verification, API access, code analysis). Evaluate each one and note any failures:\n\n### devcontainer_runnable [L3/repo, skippable]\n**Description**: The devcontainer can be built and run successfully using the devcontainer CLI or VS Code. Validates that the containerized development environment actually works, not just that config files exist. Skip if devcontainer CLI is not installed.\n**Evaluation**: Devcontainer runnable – The devcontainer can be built and run successfully using the devcontainer CLI or VS Code. Validates that the containerized development environment actually works, not just that config files exist. Skip if devcontainer CLI is not installed.\n\n### n_plus_one_detection [L4/app, skippable]\n**Description**: Check for N+1 query detection tooling. Look for: 1) bullet gem for Rails. 2) nplusone for Python/Django. 3) DataLoader pattern usage (graphql-dataloader). 4) ORM query logging with analysis. 5) Database query analysis in tests. 6) APM with slow query detection configured. PASS if any N+1 detection mechanism exists. Skip for apps without database/ORM usage (e.g., frontend-only apps, libraries, static sites).\n**Evaluation**: N+1 query detection – Check for N+1 query detection tooling. Look for: 1) bullet gem for Rails. 2) nplusone for Python/Django. 3) DataLoader pattern usage (graphql-dataloader). 4) ORM query logging with analysis. 5) Database query analysis in tests. 6) APM with slow query detection configured. PASS \n\n### unit_tests_runnable [L2/app]\n**Description**: \"test\": \"vitest\" (or Vitest) script in package.json (TS) or pytest runnable via tox/make test (Py). Actually run the command you find to see if the tests really are runnable (do not worry about whether they pass, just if they can be run). Use flags like --listTests (vitest) or --collect-only (pytest) to verify runnability without running the full suite, which can take hours. It is very important to use these flags to avoid waiting for the entire test suite to complete.\n**Evaluation**: Tests runnable locally – \"test\": \"vitest\" (or Vitest) script in package.json (TS) or pytest runnable via tox/make test (Py). Actually run the command you find to see if the tests really are runnable (do not worry about whether they pass, just if they can be run). Use flags like --listTests (vitest) \n\n### interactive_qa_runnable [L3/app]\n**Description**: Building on the documented QA path (see interactive_qa_exists), an agent must be able to ACTUALLY run the application and interactively exercise it end-to-end, regardless of app type (web/browser UI, TUI/CLI, backend/API server, mobile app, desktop app, batch/worker). Step 1 (attempt): follow the documented path to bring the app to an interactive state – install deps, stand up required local services, load env vars, launch the app, and drive at least one meaningful interaction (load a page and c\n**Evaluation**: Interactive QA runnable – Building on the documented QA path (see interactive_qa_exists), an agent must be able to ACTUALLY run the application and interactively exercise it end-to-end, regardless of app type (web/browser UI, TUI/CLI, backend/API server, mobile app, desktop app, batch/worker). Step \n\n### circuit_breakers [L4/app, skippable]\n**Description**: Check for circuit breaker pattern implementation. Look for: 1) Circuit breaker libraries (opossum, cockatiel for Node.js, resilience4j for Java, polly for .NET, tenacity for Python). 2) Service mesh with circuit breaking (Istio, Linkerd configuration). 3) Custom circuit breaker implementation (grep for 'circuit', 'breaker', 'fallback' patterns). 4) Retry with exponential backoff configuration. PASS if circuit breaker or resilience pattern is implemented for external calls. Skip for apps without \n**Evaluation**: Circuit breakers – Check for circuit breaker pattern implementation. Look for: 1) Circuit breaker libraries (opossum, cockatiel for Node.js, resilience4j for Java, polly for .NET, tenacity for Python). 2) Service mesh with circuit breaking (Istio, Linkerd configuration). 3) Custom circuit breaker im\n\n### pii_handling [L3/app, skippable]\n**Description**: Check for PII detection and handling tooling. Look for: 1) Data classification tools (Microsoft Presidio, AWS Macie integration, Google DLP). 2) PII detection in CI (detect-secrets with PII patterns, custom regex scanners). 3) Data masking libraries in dependencies (faker for test data, masking utilities). 4) Documentation of PII handling in AGENTS.md, privacy policy references, or data-handling docs. PASS if any PII-aware tooling or documented handling procedures exist. Skip for apps that do no\n**Evaluation**: PII handling – Check for PII detection and handling tooling. Look for: 1) Data classification tools (Microsoft Presidio, AWS Macie integration, Google DLP). 2) PII detection in CI (detect-secrets with PII patterns, custom regex scanners). 3) Data masking libraries in dependencies (faker for test dat\n\n### log_scrubbing [L3/app]\n**Description**: Check for log sanitization/scrubbing mechanisms. Look for: 1) Logging library with redaction support configured (pino redact, winston format with filtering, structlog processors). 2) Custom log sanitization middleware or utilities (grep for 'redact', 'sanitize', 'mask' in logging code). 3) Log scrubbing documentation in AGENTS.md or logging guidelines. 4) PII filtering patterns in log configuration. PASS if any log sanitization mechanism is configured or documented.\n**Evaluation**: Log scrubbing – Check for log sanitization/scrubbing mechanisms. Look for: 1) Logging library with redaction support configured (pino redact, winston format with filtering, structlog processors). 2) Custom log sanitization middleware or utilities (grep for 'redact', 'sanitize', 'mask' in logging cod\n\n## Quality standards (from Droid trace analysis)\nYour fix must **genuinely improve the codebase**. Do NOT use workarounds or shortcuts:\n- **NO** empty placeholder files (e.g., empty test files, stub configs)\n- **NO** minimal implementations that technically pass but provide no real value\n- **NO** disabling checks or adding skip markers to pass validation\n- **NO** trivial changes that game the metric without improving quality\n\n**BAD**: Adding an empty `test.js` file to satisfy \"has tests\". Creating a `.eslintrc` that disables all rules.\n**GOOD**: Writing actual unit tests with meaningful assertions. Configuring ESLint with appropriate rules for the project.\n\n## Safety\n- Never commit secrets or remove existing tests.\n- If a mandatory gate (P2 testing or P6 security) would regress from your change, stop and report it.\n- If a fix requires domain knowledge you don't have, note it and skip to the next item.\n- Default to showing proposed changes before applying when not in an automated context.\n\n## Verification\nAfter applying fixes, re-run the readiness engine to confirm the score improved:\n```\nnode --experimental-strip-types src/cli.ts . --json\n```\nCheck that the specific check IDs you fixed now pass — not just that the overall score increased.",
+      "durationMs": 2994
+    },
+    "piHybrid": null,
+    "droid": {
+      "level": 1,
+      "passRate": 20.3,
+      "passedSignals": 14,
+      "totalSignals": 69,
+      "skippedSignals": 12,
+      "signals": [
+        {
+          "id": "lint_config",
+          "name": "Lint Config",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "`eslint src` script exists but no ESLint config file anywhere",
+          "skipped": false
+        },
+        {
+          "id": "type_check",
+          "name": "Type Check",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "tsconfig has empty `compilerOptions`, no strict mode",
+          "skipped": false
+        },
+        {
+          "id": "formatter",
+          "name": "Formatter",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No Prettier or formatter config",
+          "skipped": false
+        },
+        {
+          "id": "pre_commit_hooks",
+          "name": "Pre-commit Hooks",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Only sample git hooks; no husky/lint-staged or pre-commit config",
+          "skipped": false
+        },
+        {
+          "id": "strict_typing",
+          "name": "Strict Typing",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Strict mode not enabled (TS app, applicable)",
+          "skipped": false
+        },
+        {
+          "id": "naming_consistency",
+          "name": "Naming Consistency",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No naming-convention rules or documented conventions",
+          "skipped": false
+        },
+        {
+          "id": "cyclomatic_complexity",
+          "name": "Cyclomatic Complexity",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No complexity analyzer or thresholds",
+          "skipped": false
+        },
+        {
+          "id": "dead_code_detection",
+          "name": "Dead Code Detection",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No knip/unimported/staticcheck or equivalent",
+          "skipped": false
+        },
+        {
+          "id": "duplicate_code_detection",
+          "name": "Duplicate Code Detection",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No jscpd/CPD/Sonar",
+          "skipped": false
+        },
+        {
+          "id": "code_modularization",
+          "name": "Code Modularization",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(small project, 4 source stubs)",
+          "skipped": true
+        },
+        {
+          "id": "build_cmd_doc",
+          "name": "Build Command Documented",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "README only says \"run npm start\"; no install/build docs",
+          "skipped": false
+        },
+        {
+          "id": "deps_pinned",
+          "name": "Dependencies Pinned",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "Lockfile committed (but empty; zero dependencies declared)",
+          "skipped": false
+        },
+        {
+          "id": "vcs_cli_tools",
+          "name": "VCS CLI Tools",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "`gh` installed and authenticated (repo itself 404s remotely)",
+          "skipped": false
+        },
+        {
+          "id": "automated_pr_review",
+          "name": "Automated PR Review",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Reviewer droid config exists, but hooks/connectors are empty and no PRs exist",
+          "skipped": false
+        },
+        {
+          "id": "agentic_development",
+          "name": "Agentic Development",
+          "passed": true,
+          "score": "1/1",
+          "rationale": ".factory/droids/reviewer.md plus hooks/connectors/mcp config",
+          "skipped": false
+        },
+        {
+          "id": "fast_ci_feedback",
+          "name": "Fast CI Feedback",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Broken ci.yml (no checkout step, vitest undeclared)",
+          "skipped": false
+        },
+        {
+          "id": "build_performance_tracking",
+          "name": "Build Performance Tracking",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Plain `tsc`, no caching or metrics",
+          "skipped": false
+        },
+        {
+          "id": "deployment_frequency",
+          "name": "Deployment Frequency",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No deploy workflows or releases",
+          "skipped": false
+        },
+        {
+          "id": "single_command_setup",
+          "name": "Single Command Setup",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "Short documented startup sequence (minus install)",
+          "skipped": false
+        },
+        {
+          "id": "feature_flag_infrastructure",
+          "name": "Feature Flag Infrastructure",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No flag system",
+          "skipped": false
+        },
+        {
+          "id": "release_notes_automation",
+          "name": "Release Notes Automation",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "progressive_rollout",
+          "name": "Progressive Rollout",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(single-app, non-infra, non-bundled)",
+          "skipped": true
+        },
+        {
+          "id": "rollback_automation",
+          "name": "Rollback",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(single-app, non-infra, non-bundled)",
+          "skipped": true
+        },
+        {
+          "id": "monorepo_tooling",
+          "name": "Monorepo Tooling",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(single-app, non-infra, non-bundled)",
+          "skipped": true
+        },
+        {
+          "id": "version_drift_detection",
+          "name": "Version Drift",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(single-app, non-infra, non-bundled)",
+          "skipped": true
+        },
+        {
+          "id": "heavy_dependency_detection",
+          "name": "Heavy Dependency Detection",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(single-app, non-infra, non-bundled)",
+          "skipped": true
+        },
+        {
+          "id": "unused_dependencies_detection",
+          "name": "Unused Dependencies Detection",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No depcheck/knip",
+          "skipped": false
+        },
+        {
+          "id": "release_automation",
+          "name": "Release Automation",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Nothing automated",
+          "skipped": false
+        },
+        {
+          "id": "dead_feature_flag_detection",
+          "name": "Dead Feature Flag Detection",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No flags to detect",
+          "skipped": false
+        },
+        {
+          "id": "unit_tests_exist",
+          "name": "Unit Tests Exist",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "test/api.test.ts present",
+          "skipped": false
+        },
+        {
+          "id": "integration_tests_exist",
+          "name": "Integration Tests Exist",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "unit_tests_runnable",
+          "name": "Unit Tests Runnable",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "`npm test` fails: `vitest: not found` (undeclared dep, no node_modules)",
+          "skipped": false
+        },
+        {
+          "id": "test_performance_tracking",
+          "name": "Test Performance Tracking",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "flaky_test_detection",
+          "name": "Flaky Test Detection",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No retry/quarantine tooling",
+          "skipped": false
+        },
+        {
+          "id": "test_coverage_thresholds",
+          "name": "Coverage Thresholds",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Coverage collected but no threshold enforced",
+          "skipped": false
+        },
+        {
+          "id": "test_naming_conventions",
+          "name": "Test Naming Conventions",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "Matches vitest default `*.test.ts` pattern",
+          "skipped": false
+        },
+        {
+          "id": "test_isolation",
+          "name": "Test Isolation",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "Vitest parallel workers by default",
+          "skipped": false
+        },
+        {
+          "id": "interactive_qa_exists",
+          "name": "Interactive QA Documented",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No drive step, no endpoints, demo is a stub",
+          "skipped": false
+        },
+        {
+          "id": "interactive_qa_runnable",
+          "name": "Interactive QA Runnable",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "`npm start` fails (no dist, nothing builds it); tests fail",
+          "skipped": false
+        },
+        {
+          "id": "agents_md",
+          "name": "AGENTS.md",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "Present, 169 chars, covers commands/secrets/modules",
+          "skipped": false
+        },
+        {
+          "id": "readme",
+          "name": "README",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "Present with usage/architecture sections",
+          "skipped": false
+        },
+        {
+          "id": "automated_pr_review",
+          "name": "Automated Doc Generation",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "skills",
+          "name": "Skills",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No SKILL.md anywhere",
+          "skipped": false
+        },
+        {
+          "id": "documentation_freshness",
+          "name": "Documentation Freshness",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "Docs committed 2026-08-26 (within 180 days)",
+          "skipped": false
+        },
+        {
+          "id": "service_flow_documented",
+          "name": "Service Flow Documented",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "ARCHITECTURE.md + README module structure with db/queue deps",
+          "skipped": false
+        },
+        {
+          "id": "agents_md_validation",
+          "name": "AGENTS.md Validation",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No automation validates it (CI broken)",
+          "skipped": false
+        },
+        {
+          "id": "devcontainer_runnable",
+          "name": "Devcontainer",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Referenced in README but no .devcontainer.json",
+          "skipped": false
+        },
+        {
+          "id": "env_template",
+          "name": "Env Template",
+          "passed": true,
+          "score": "1/1",
+          "rationale": ".env.example with DATABASE_URL, API_KEY, LOG_LEVEL",
+          "skipped": false
+        },
+        {
+          "id": "local_services_setup",
+          "name": "Local Services Setup",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "DATABASE_URL dependency but no compose/docs",
+          "skipped": false
+        },
+        {
+          "id": "database_schema",
+          "name": "Database Schema",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No schema despite DATABASE_URL",
+          "skipped": false
+        },
+        {
+          "id": "devcontainer_runnable",
+          "name": "Devcontainer Runnable",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(CLI not installed)",
+          "skipped": true
+        },
+        {
+          "id": "runbooks_documented",
+          "name": "Runbooks",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None referenced",
+          "skipped": false
+        },
+        {
+          "id": "api_schema_docs",
+          "name": "API Schema Docs",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No OpenAPI/Swagger/GraphQL for a documented HTTP API",
+          "skipped": false
+        },
+        {
+          "id": "structured_logging",
+          "name": "Structured Logging",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No logger",
+          "skipped": false
+        },
+        {
+          "id": "distributed_tracing",
+          "name": "Distributed Tracing",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No trace/request IDs",
+          "skipped": false
+        },
+        {
+          "id": "metrics_collection",
+          "name": "Metrics Collection",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "code_quality_metrics",
+          "name": "Code Quality Metrics",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "Coverage collected via `vitest --run --coverage`",
+          "skipped": false
+        },
+        {
+          "id": "error_tracking_contextualized",
+          "name": "Error Tracking",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No Sentry/Bugsnag/Rollbar",
+          "skipped": false
+        },
+        {
+          "id": "alerting_configured",
+          "name": "Alerting",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "deployment_observability",
+          "name": "Deployment Observability",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "health_checks",
+          "name": "Health Checks",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No health endpoint or probes; no server code",
+          "skipped": false
+        },
+        {
+          "id": "circuit_breakers",
+          "name": "Circuit Breakers",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "External deps documented, no resilience impl",
+          "skipped": false
+        },
+        {
+          "id": "profiling_instrumentation",
+          "name": "Profiling",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "error_to_insight_pipeline",
+          "name": "Error-to-Insight Pipeline",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "branch_protection",
+          "name": "Branch Protection",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(no admin access; repo 404)",
+          "skipped": true
+        },
+        {
+          "id": "secret_scanning",
+          "name": "Secret Scanning",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(no admin access; repo 404)",
+          "skipped": true
+        },
+        {
+          "id": "automated_security_review",
+          "name": "Automated Security Review",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(no admin access; repo 404)",
+          "skipped": true
+        },
+        {
+          "id": "codeowners",
+          "name": "CODEOWNERS",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Missing",
+          "skipped": false
+        },
+        {
+          "id": "dependency_update_automation",
+          "name": "Dependency Update Automation",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No dependabot/renovate",
+          "skipped": false
+        },
+        {
+          "id": "gitignore_comprehensive",
+          "name": "Gitignore Comprehensive",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Omits `.idea`, `.vscode`, `.DS_Store`",
+          "skipped": false
+        },
+        {
+          "id": "dast_scanning",
+          "name": "DAST Scanning",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Only npm audit (SAST-ish, not DAST)",
+          "skipped": false
+        },
+        {
+          "id": "pii_handling",
+          "name": "PII Handling",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(no personal data processed)",
+          "skipped": true
+        },
+        {
+          "id": "privacy_compliance",
+          "name": "Privacy Compliance",
+          "passed": false,
+          "score": "skip",
+          "rationale": "(no personal data processed)",
+          "skipped": true
+        },
+        {
+          "id": "secrets_management",
+          "name": "Secrets Management",
+          "passed": true,
+          "score": "1/1",
+          "rationale": "`.env` gitignored (verified), template provided, no hardcoded secrets",
+          "skipped": false
+        },
+        {
+          "id": "log_scrubbing",
+          "name": "Log Scrubbing",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None",
+          "skipped": false
+        },
+        {
+          "id": "release_notes_automation",
+          "name": "Min Release Age",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No delay gate",
+          "skipped": false
+        },
+        {
+          "id": "issue_templates",
+          "name": "Issue Templates",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Missing",
+          "skipped": false
+        },
+        {
+          "id": "issue_labeling_system",
+          "name": "Issue Labeling",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None configured",
+          "skipped": false
+        },
+        {
+          "id": "backlog_health",
+          "name": "Backlog Health",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "No issues (repo 404)",
+          "skipped": false
+        },
+        {
+          "id": "pr_templates",
+          "name": "PR Templates",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "Missing",
+          "skipped": false
+        },
+        {
+          "id": "product_analytics_instrumentation",
+          "name": "Product Analytics",
+          "passed": false,
+          "score": "0/1",
+          "rationale": "None instrumented",
+          "skipped": false
+        }
+      ],
+      "actionItems": [
+        "Make the project actually runnable: declare `vitest`/`typescript`/`eslint` as dependencies and commit a valid lockfile so `npm test` and `npm start` work",
+        "Add ESLint (with config), Prettier, and strict TypeScript (`\"strict\": true`) so agent edits are linted, formatted, and type-checked",
+        "Fix the CI workflow (add checkout + setup-node steps) and document the full setup/build path in README; optionally add AGENTS.md-validating checks"
+      ],
+      "rawOutput": "Report stored successfully (reportId `f07d77c8-9de4-4fbb-9cdc-d789ced248ce`).\n\n# Level\n**Level 1** (19.7% pass rate: 14/71 non-skipped signals)\n\n# Applications\n1. `.` (repo root) - \"Acme Service\": TypeScript HTTP API service for event ingestion/transformation (api/domain/infra modules); single-application repository\n\n# Criteria\n**Style & Validation**\n- Lint Config: 0/1 - `eslint src` script exists but no ESLint config file anywhere\n- Type Check: 0/1 - tsconfig has empty `compilerOptions`, no strict mode\n- Formatter: 0/1 - No Prettier or formatter config\n- Pre-commit Hooks: 0/1 - Only sample git hooks; no husky/lint-staged or pre-commit config\n- Strict Typing: 0/1 - Strict mode not enabled (TS app, applicable)\n- Naming Consistency: 0/1 - No naming-convention rules or documented conventions\n- Cyclomatic Complexity: 0/1 - No complexity analyzer or thresholds\n- Dead Code Detection: 0/1 - No knip/unimported/staticcheck or equivalent\n- Duplicate Code Detection: 0/1 - No jscpd/CPD/Sonar\n- Code Modularization: skipped (small project, 4 source stubs)\n\n**Build System**\n- Build Command Documented: 0/1 - README only says \"run npm start\"; no install/build docs\n- Dependencies Pinned: 1/1 - Lockfile committed (but empty; zero dependencies declared)\n- VCS CLI Tools: 1/1 - `gh` installed and authenticated (repo itself 404s remotely)\n- Automated PR Review: 0/1 - Reviewer droid config exists, but hooks/connectors are empty and no PRs exist\n- Agentic Development: 1/1 - .factory/droids/reviewer.md plus hooks/connectors/mcp config\n- Fast CI Feedback: 0/1 - Broken ci.yml (no checkout step, vitest undeclared)\n- Build Performance Tracking: 0/1 - Plain `tsc`, no caching or metrics\n- Deployment Frequency: 0/1 - No deploy workflows or releases\n- Single Command Setup: 1/1 - Short documented startup sequence (minus install)\n- Feature Flag Infrastructure: 0/1 - No flag system\n- Release Notes Automation: 0/1 - None\n- Progressive Rollout / Rollback / Monorepo Tooling / Version Drift / Heavy Dependency Detection: skipped (single-app, non-infra, non-bundled)\n- Unused Dependencies Detection: 0/1 - No depcheck/knip\n- Release Automation: 0/1 - Nothing automated\n- Dead Feature Flag Detection: 0/1 - No flags to detect\n\n**Testing**\n- Unit Tests Exist: 1/1 - test/api.test.ts present\n- Integration Tests Exist: 0/1 - None\n- Unit Tests Runnable: 0/1 - `npm test` fails: `vitest: not found` (undeclared dep, no node_modules)\n- Test Performance Tracking: 0/1 - None\n- Flaky Test Detection: 0/1 - No retry/quarantine tooling\n- Coverage Thresholds: 0/1 - Coverage collected but no threshold enforced\n- Test Naming Conventions: 1/1 - Matches vitest default `*.test.ts` pattern\n- Test Isolation: 1/1 - Vitest parallel workers by default\n- Interactive QA Documented: 0/1 - No drive step, no endpoints, demo is a stub\n- Interactive QA Runnable: 0/1 - `npm start` fails (no dist, nothing builds it); tests fail\n\n**Documentation**\n- AGENTS.md: 1/1 - Present, 169 chars, covers commands/secrets/modules\n- README: 1/1 - Present with usage/architecture sections\n- Automated Doc Generation: 0/1 - None\n- Skills: 0/1 - No SKILL.md anywhere\n- Documentation Freshness: 1/1 - Docs committed 2026-08-26 (within 180 days)\n- Service Flow Documented: 1/1 - ARCHITECTURE.md + README module structure with db/queue deps\n- AGENTS.md Validation: 0/1 - No automation validates it (CI broken)\n- Devcontainer: 0/1 - Referenced in README but no .devcontainer.json\n- Env Template: 1/1 - .env.example with DATABASE_URL, API_KEY, LOG_LEVEL\n- Local Services Setup: 0/1 - DATABASE_URL dependency but no compose/docs\n- Database Schema: 0/1 - No schema despite DATABASE_URL\n- Devcontainer Runnable: skipped (CLI not installed)\n- Runbooks: 0/1 - None referenced\n- API Schema Docs: 0/1 - No OpenAPI/Swagger/GraphQL for a documented HTTP API\n\n**Debugging & Observability**\n- Structured Logging: 0/1 - No logger\n- Distributed Tracing: 0/1 - No trace/request IDs\n- Metrics Collection: 0/1 - None\n- Code Quality Metrics: 1/1 - Coverage collected via `vitest --run --coverage`\n- Error Tracking: 0/1 - No Sentry/Bugsnag/Rollbar\n- Alerting: 0/1 - None\n- Deployment Observability: 0/1 - None\n- Health Checks: 0/1 - No health endpoint or probes; no server code\n- Circuit Breakers: 0/1 - External deps documented, no resilience impl\n- Profiling: 0/1 - None\n- Error-to-Insight Pipeline: 0/1 - None\n\n**Security**\n- Branch Protection / Secret Scanning / Automated Security Review: skipped (no admin access; repo 404)\n- CODEOWNERS: 0/1 - Missing\n- Dependency Update Automation: 0/1 - No dependabot/renovate\n- Gitignore Comprehensive: 0/1 - Omits `.idea`, `.vscode`, `.DS_Store`\n- DAST Scanning: 0/1 - Only npm audit (SAST-ish, not DAST)\n- PII Handling / Privacy Compliance: skipped (no personal data processed)\n- Secrets Management: 1/1 - `.env` gitignored (verified), template provided, no hardcoded secrets\n- Log Scrubbing: 0/1 - None\n- Min Release Age: 0/1 - No delay gate\n- Issue Templates: 0/1 - Missing\n- Issue Labeling: 0/1 - None configured\n- Backlog Health: 0/1 - No issues (repo 404)\n- PR Templates: 0/1 - Missing\n- Product Analytics: 0/1 - None instrumented\n\n# Action Items\n- Make the project actually runnable: declare `vitest`/`typescript`/`eslint` as dependencies and commit a valid lockfile so `npm test` and `npm start` work\n- Add ESLint (with config), Prettier, and strict TypeScript (`\"strict\": true`) so agent edits are linted, formatted, and type-checked\n- Fix the CI workflow (add checkout + setup-node steps) and document the full setup/build path in README; optionally add AGENTS.md-validating checks\n\n# Changes Since Last Report\n- No changes. The repository is identical to the previous evaluation (same single commit `2bec342 initial`; all file contents, git state, and environment conditions re-verified). All 84 scores carry over unchanged from the prior report.\n\n---\nView the full report: https://app.factory.ai/analytics/readiness/https%253A%252F%252Fgithub.com%252Ffake%252Fhigh\n📊 Starting agent readiness evaluation for: https://github.com/fake/high.git\n",
+      "durationMs": 119542
+    },
+    "comparisons": [
+      {
+        "droidId": "lint_config",
+        "droidName": "Lint Config",
+        "piId": "P5.1",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "pi-lenient"
+      },
+      {
+        "droidId": "type_check",
+        "droidName": "Type Check",
+        "piId": "P5.3",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "pi-lenient"
+      },
+      {
+        "droidId": "formatter",
+        "droidName": "Formatter",
+        "piId": "P5.2",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "pre_commit_hooks",
+        "droidName": "Pre-commit Hooks",
+        "piId": "P4.3",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "strict_typing",
+        "droidName": "Strict Typing",
+        "piId": "P5.6",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "naming_consistency",
+        "droidName": "Naming Consistency",
+        "piId": "P5.7",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "cyclomatic_complexity",
+        "droidName": "Cyclomatic Complexity",
+        "piId": "P5.10",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "dead_code_detection",
+        "droidName": "Dead Code Detection",
+        "piId": "P5.8",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "duplicate_code_detection",
+        "droidName": "Duplicate Code Detection",
+        "piId": "P5.9",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "build_cmd_doc",
+        "droidName": "Build Command Documented",
+        "piId": "P3.2",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "pi-lenient"
+      },
+      {
+        "droidId": "deps_pinned",
+        "droidName": "Dependencies Pinned",
+        "piId": "P3.1",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "vcs_cli_tools",
+        "droidName": "VCS CLI Tools",
+        "piId": "P3.7",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "automated_pr_review",
+        "droidName": "Automated PR Review",
+        "piId": "P1.7",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "pi-lenient"
+      },
+      {
+        "droidId": "agentic_development",
+        "droidName": "Agentic Development",
+        "piId": "P1.6",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "fast_ci_feedback",
+        "droidName": "Fast CI Feedback",
+        "piId": "P4.10",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "build_performance_tracking",
+        "droidName": "Build Performance Tracking",
+        "piId": "P4.11",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "deployment_frequency",
+        "droidName": "Deployment Frequency",
+        "piId": "P4.12",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "single_command_setup",
+        "droidName": "Single Command Setup",
+        "piId": "P8.2",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "feature_flag_infrastructure",
+        "droidName": "Feature Flag Infrastructure",
+        "piId": "P4.14",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "release_notes_automation",
+        "droidName": "Release Notes Automation",
+        "piId": "P4.15",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "unused_dependencies_detection",
+        "droidName": "Unused Dependencies Detection",
+        "piId": "P5.11",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "release_automation",
+        "droidName": "Release Automation",
+        "piId": "P4.9",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "dead_feature_flag_detection",
+        "droidName": "Dead Feature Flag Detection",
+        "piId": "P5.15",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "unit_tests_exist",
+        "droidName": "Unit Tests Exist",
+        "piId": "P2.1",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "integration_tests_exist",
+        "droidName": "Integration Tests Exist",
+        "piId": "P2.7",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "unit_tests_runnable",
+        "droidName": "Unit Tests Runnable",
+        "piId": null,
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "test_performance_tracking",
+        "droidName": "Test Performance Tracking",
+        "piId": "P2.11",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "flaky_test_detection",
+        "droidName": "Flaky Test Detection",
+        "piId": "P2.10",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "test_coverage_thresholds",
+        "droidName": "Coverage Thresholds",
+        "piId": "P2.4",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "pi-lenient"
+      },
+      {
+        "droidId": "test_naming_conventions",
+        "droidName": "Test Naming Conventions",
+        "piId": "P2.8",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "pi-strict"
+      },
+      {
+        "droidId": "test_isolation",
+        "droidName": "Test Isolation",
+        "piId": "P2.9",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "pi-strict"
+      },
+      {
+        "droidId": "interactive_qa_exists",
+        "droidName": "Interactive QA Documented",
+        "piId": "P8.7",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "interactive_qa_runnable",
+        "droidName": "Interactive QA Runnable",
+        "piId": null,
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "agents_md",
+        "droidName": "AGENTS.md",
+        "piId": "P1.1",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "readme",
+        "droidName": "README",
+        "piId": "P0.1",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "automated_pr_review",
+        "droidName": "Automated Doc Generation",
+        "piId": "P1.7",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "pi-lenient"
+      },
+      {
+        "droidId": "skills",
+        "droidName": "Skills",
+        "piId": "P1.4",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "pi-lenient"
+      },
+      {
+        "droidId": "documentation_freshness",
+        "droidName": "Documentation Freshness",
+        "piId": "P0.7",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "service_flow_documented",
+        "droidName": "Service Flow Documented",
+        "piId": "P0.3",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "agents_md_validation",
+        "droidName": "AGENTS.md Validation",
+        "piId": "P1.9",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "devcontainer_runnable",
+        "droidName": "Devcontainer",
+        "piId": null,
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "env_template",
+        "droidName": "Env Template",
+        "piId": "P8.1",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "local_services_setup",
+        "droidName": "Local Services Setup",
+        "piId": "P8.6",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "database_schema",
+        "droidName": "Database Schema",
+        "piId": "P8.8",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "runbooks_documented",
+        "droidName": "Runbooks",
+        "piId": "P7.9",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "api_schema_docs",
+        "droidName": "API Schema Docs",
+        "piId": "P0.9",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "structured_logging",
+        "droidName": "Structured Logging",
+        "piId": "P7.1",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "distributed_tracing",
+        "droidName": "Distributed Tracing",
+        "piId": "P7.5",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "metrics_collection",
+        "droidName": "Metrics Collection",
+        "piId": "P7.6",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "code_quality_metrics",
+        "droidName": "Code Quality Metrics",
+        "piId": "P5.13",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "error_tracking_contextualized",
+        "droidName": "Error Tracking",
+        "piId": "P7.7",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "alerting_configured",
+        "droidName": "Alerting",
+        "piId": "P7.10",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "deployment_observability",
+        "droidName": "Deployment Observability",
+        "piId": "P7.11",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "health_checks",
+        "droidName": "Health Checks",
+        "piId": "P7.12",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "circuit_breakers",
+        "droidName": "Circuit Breakers",
+        "piId": null,
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "profiling_instrumentation",
+        "droidName": "Profiling",
+        "piId": "P7.13",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "error_to_insight_pipeline",
+        "droidName": "Error-to-Insight Pipeline",
+        "piId": "P7.14",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "codeowners",
+        "droidName": "CODEOWNERS",
+        "piId": "P4.4",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "dependency_update_automation",
+        "droidName": "Dependency Update Automation",
+        "piId": "P4.5",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "gitignore_comprehensive",
+        "droidName": "Gitignore Comprehensive",
+        "piId": "P6.1",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "pi-lenient"
+      },
+      {
+        "droidId": "dast_scanning",
+        "droidName": "DAST Scanning",
+        "piId": "P6.9",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "secrets_management",
+        "droidName": "Secrets Management",
+        "piId": "P6.5",
+        "droidPassed": true,
+        "droidSkipped": false,
+        "piPassed": true,
+        "agreement": "agree-pass"
+      },
+      {
+        "droidId": "log_scrubbing",
+        "droidName": "Log Scrubbing",
+        "piId": null,
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "release_notes_automation",
+        "droidName": "Min Release Age",
+        "piId": "P4.15",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "issue_templates",
+        "droidName": "Issue Templates",
+        "piId": "P4.6",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "issue_labeling_system",
+        "droidName": "Issue Labeling",
+        "piId": "P4.8",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "backlog_health",
+        "droidName": "Backlog Health",
+        "piId": "P4.13",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": null,
+        "agreement": "agent-only"
+      },
+      {
+        "droidId": "pr_templates",
+        "droidName": "PR Templates",
+        "piId": "P4.7",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      },
+      {
+        "droidId": "product_analytics_instrumentation",
+        "droidName": "Product Analytics",
+        "piId": "P7.8",
+        "droidPassed": false,
+        "droidSkipped": false,
+        "piPassed": false,
+        "agreement": "agree-fail"
+      }
+    ],
+    "hybridComparisons": null,
+    "fixes": null,
+    "summary": {
+      "agreementRate": 72.5,
+      "agreePass": 11,
+      "agreeFail": 39,
+      "piLenient": 8,
+      "piStrict": 2,
+      "agentOnly": 9,
+      "hybridAgreementRate": 0,
+      "hybridAgreePass": 0,
+      "hybridAgreeFail": 0,
+      "hybridPiLenient": 0,
+      "hybridPiStrict": 0,
+      "hybridAgentOnly": 0,
+      "piDurationMs": 2994,
+      "piHybridDurationMs": 0,
+      "droidDurationMs": 119542
+    }
+  }
+]

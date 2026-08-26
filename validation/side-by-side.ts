@@ -330,7 +330,8 @@ export function compareCriteria(
     let piPassed: boolean | null = null;
     if (piId) {
       const finding = piFindings.find(f => f.id === piId);
-      if (finding) piPassed = finding.pass;
+      // Treat skipped pi checks as "not checked" (null), not as pass=true
+      if (finding && !finding.skipped) piPassed = finding.pass;
     }
 
     let agreement: AgreementType;
