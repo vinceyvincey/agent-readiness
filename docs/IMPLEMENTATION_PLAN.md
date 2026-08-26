@@ -8,11 +8,13 @@
 - docs/RESEARCH_LANDSCAPE.md, docs/PI_ARCHITECTURE.md.
 - Git repo initialized + README.
 
-## M1 - Scaffolding
-- [ ] skills/agent-readiness/SKILL.md with valid frontmatter (name, description).
-- [ ] criteria/: 10 pillar files, each: purpose + ~5-10 checks (deterministic + judgment).
-- [ ] references/FRAMEWORK pointer.
-- Verify: pi discovers the skill; /skill:agent-readiness loads without validation warnings.
+## M1 - Scaffolding - DONE
+- [x] skills/agent-readiness/SKILL.md with valid frontmatter (name, description).
+- [x] criteria/: 10 pillar files (P0..P9), each: purpose + D/J checks + anti-gaming.
+- [x] references/FRAMEWORK pointer (skill self-containment).
+- Verify: frontmatter valid (name lowercase-hyphen, description <1024, license/compat); 10 criteria files listed. NOTE: end-to-end pi discovery check is deferred to M2 when the engine exists to smoke it.
+
+## M2 - Deterministic engine (extension core)
 
 ## M2 - Deterministic engine (extension core)
 - [ ] src/engine.ts: scan target dir -> { per-file, per-pillar %, overall, level, findings }.

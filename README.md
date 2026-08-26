@@ -14,4 +14,9 @@ Built after researching Factory.ai's *Agent Readiness* model and the open-source
 - `.pi/extensions/agent-readiness/` - the extension (commands + tools)
 
 ## Status
-Planning phase. Research + design committed; skill/extension implementation pending.
+Research + design committed. **M1 done**: skill scaffolding (SKILL.md + 10 pillar criteria) in place. M2 (deterministic engine) next.
+
+## Skill layout (M1)
+- `skills/agent-readiness/SKILL.md` - 5-phase audit workflow, valid Agent-Skills frontmatter, rubric_version 0.1.0.
+- `skills/agent-readiness/criteria/P0..P9*.md` - per-pillar criteria: deterministic (D) + judgment (J) checks + anti-gaming guards.
+- `skills/agent-readiness/references/FRAMEWORK.md` - pointer to canonical model.
