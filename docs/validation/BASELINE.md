@@ -21,3 +21,15 @@
 - Keep a running table: date, rubric_version, repo, score, level, key changes, closing evidence.
 
 > Goal: an honest, refereeable continuous record so trends are honest and comparable.
+## M1 measured run (skill, prompt-executed)
+Date: 2026-02 (M1 close). Runner: pi 0.84.3 in print mode via the agent-readiness skill. Model: <session default>. Rubric v0.1.0.
+Note: prompt-executed via skill; full deterministic engine is M2.
+
+| Pillar | passed/total | pct | evidence |
+|---|---|---|---|
+| P0 Documentation | 3/6 | 50 | README non-empty+H1; docs/ present; no run/CHANGELOG/examples |
+| P2 Testing | 0/6 | 0 | no tests/config/runner/coverage/fixtures (mandatory gate FAIL) |
+| P6 Security | 2/5 | 40 | no committed secrets, no tracked .env; .gitignore weak, no vuln tooling (mandatory gate FAIL) |
+
+Overall: ~L0-L1. Two mandatory gates (P2, P6) fail -> cannot exceed L1. This is by design at M1 (docs-only repo; no engine yet).
+Full P0-P9 prompt audit exceeded the 120s shell ceiling -> so a complete picture is deferred to the M2 deterministic engine as the canonical E1 source (per VALIDATION.md).

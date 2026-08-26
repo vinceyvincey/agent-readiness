@@ -14,7 +14,7 @@ Built after researching Factory.ai's *Agent Readiness* model and the open-source
 - `.pi/extensions/agent-readiness/` - the extension (commands + tools)
 
 ## Status
-Research + design committed. **M1 done**: skill scaffolding (SKILL.md + 10 pillar criteria) in place. M2 (deterministic engine) next.
+Research + design committed. **M1 done + verified**: skill scaffolding (SKILL.md + 10 pillar criteria); pi discovers + loads it (no warnings) and executes it per-pillar (first evidence in docs/validation/BASELINE.md). M2 (deterministic engine) next.
 
 ## Skill layout (M1)
 - `skills/agent-readiness/SKILL.md` - 5-phase audit workflow, valid Agent-Skills frontmatter, rubric_version 0.1.0.

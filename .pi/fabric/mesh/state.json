@@ -5,27 +5,69 @@
       "key": "topology/peer-seq",
       "value": {
         "format": 1,
-        "next": 1
+        "next": 8
       },
-      "version": 1,
-      "updatedAt": 1787736730886,
+      "version": 8,
+      "updatedAt": 1787737657145,
       "updatedBy": {
-        "id": "session:01a03d69-7ecc-7a35-b027-48b5ee21d718",
+        "id": "session:01a03d77-c03c-7789-a24c-bacf01f92b4a",
         "name": "main",
         "kind": "main",
-        "sessionId": "01a03d69-7ecc-7a35-b027-48b5ee21d718"
+        "sessionId": "01a03d77-c03c-7789-a24c-bacf01f92b4a"
       }
     }
   },
   "versions": {
-    "topology/peer-seq": 1,
+    "topology/peer-seq": 8,
     "topology/hosts/5dc162c296f6c86461a6b88ed0d7126424ff51c410675371bb554e8a6dcf1fe1": 3,
     "sessions/01a03d69-7ecc-7a35-b027-48b5ee21d718": 2,
-    "topology/participants/5dc162c296f6c86461a6b88ed0d7126424ff51c410675371bb554e8a6dcf1fe1": 3
+    "topology/participants/5dc162c296f6c86461a6b88ed0d7126424ff51c410675371bb554e8a6dcf1fe1": 3,
+    "topology/hosts/674c8e80a8b6a25c99ef54c09ee07592e5bb1d5b8e3864f9f9210f62310d4eeb": 7,
+    "sessions/01a03d6b-5c87-7e55-ab0b-8360562de451": 6,
+    "topology/participants/674c8e80a8b6a25c99ef54c09ee07592e5bb1d5b8e3864f9f9210f62310d4eeb": 7,
+    "topology/hosts/e2fe37c32b0783e72c2579e47703b672b75911d595a10f3d04e017ea731335a6": 19,
+    "sessions/01a03d6b-ffbb-7866-95a7-8eb793f02f78": 18,
+    "topology/participants/e2fe37c32b0783e72c2579e47703b672b75911d595a10f3d04e017ea731335a6": 19,
+    "topology/hosts/a39156721ee5d81c4da9c9862390a3dab2fbaccb5bef8c1e7d99decdd2c1b09e": 86,
+    "sessions/01a03d6d-ee34-7036-b81c-3fb7f6a281cc": 85,
+    "topology/participants/a39156721ee5d81c4da9c9862390a3dab2fbaccb5bef8c1e7d99decdd2c1b09e": 86,
+    "topology/hosts/cef0415968eff7854df2f899f2562af4870bd41810e3970394613dc58ab85973": 102,
+    "sessions/01a03d6f-f953-7401-b552-ae8e8d30ad98": 101,
+    "topology/participants/cef0415968eff7854df2f899f2562af4870bd41810e3970394613dc58ab85973": 102,
+    "topology/hosts/44ae040ff9663973fbb5b091886be2a98f7bd47a631e51b8706632420f5e5398": 49,
+    "sessions/01a03d73-fa6e-7334-93bc-de2d30dae95c": 48,
+    "topology/participants/44ae040ff9663973fbb5b091886be2a98f7bd47a631e51b8706632420f5e5398": 49,
+    "topology/hosts/754b626097708b7d1f9fa59ff5674127ca9c06495a1c01605e53c0df2fb01fad": 65,
+    "sessions/01a03d76-0fcc-773f-b3cf-b4e570ce81ae": 64,
+    "topology/participants/754b626097708b7d1f9fa59ff5674127ca9c06495a1c01605e53c0df2fb01fad": 65,
+    "topology/hosts/aaed8bf52b522576f5e07b5d11893091cf43fb72f2bd00d704a6b15f17996010": 53,
+    "sessions/01a03d77-c03c-7789-a24c-bacf01f92b4a": 52,
+    "topology/participants/aaed8bf52b522576f5e07b5d11893091cf43fb72f2bd00d704a6b15f17996010": 53
   },
   "tombstoneOrder": [
     "sessions/01a03d69-7ecc-7a35-b027-48b5ee21d718",
     "topology/participants/5dc162c296f6c86461a6b88ed0d7126424ff51c410675371bb554e8a6dcf1fe1",
-    "topology/hosts/5dc162c296f6c86461a6b88ed0d7126424ff51c410675371bb554e8a6dcf1fe1"
+    "topology/hosts/5dc162c296f6c86461a6b88ed0d7126424ff51c410675371bb554e8a6dcf1fe1",
+    "sessions/01a03d6b-5c87-7e55-ab0b-8360562de451",
+    "topology/participants/674c8e80a8b6a25c99ef54c09ee07592e5bb1d5b8e3864f9f9210f62310d4eeb",
+    "topology/hosts/674c8e80a8b6a25c99ef54c09ee07592e5bb1d5b8e3864f9f9210f62310d4eeb",
+    "sessions/01a03d6b-ffbb-7866-95a7-8eb793f02f78",
+    "topology/participants/e2fe37c32b0783e72c2579e47703b672b75911d595a10f3d04e017ea731335a6",
+    "topology/hosts/e2fe37c32b0783e72c2579e47703b672b75911d595a10f3d04e017ea731335a6",
+    "sessions/01a03d6d-ee34-7036-b81c-3fb7f6a281cc",
+    "topology/participants/a39156721ee5d81c4da9c9862390a3dab2fbaccb5bef8c1e7d99decdd2c1b09e",
+    "topology/hosts/a39156721ee5d81c4da9c9862390a3dab2fbaccb5bef8c1e7d99decdd2c1b09e",
+    "sessions/01a03d6f-f953-7401-b552-ae8e8d30ad98",
+    "topology/participants/cef0415968eff7854df2f899f2562af4870bd41810e3970394613dc58ab85973",
+    "topology/hosts/cef0415968eff7854df2f899f2562af4870bd41810e3970394613dc58ab85973",
+    "sessions/01a03d73-fa6e-7334-93bc-de2d30dae95c",
+    "topology/participants/44ae040ff9663973fbb5b091886be2a98f7bd47a631e51b8706632420f5e5398",
+    "topology/hosts/44ae040ff9663973fbb5b091886be2a98f7bd47a631e51b8706632420f5e5398",
+    "sessions/01a03d76-0fcc-773f-b3cf-b4e570ce81ae",
+    "topology/participants/754b626097708b7d1f9fa59ff5674127ca9c06495a1c01605e53c0df2fb01fad",
+    "topology/hosts/754b626097708b7d1f9fa59ff5674127ca9c06495a1c01605e53c0df2fb01fad",
+    "sessions/01a03d77-c03c-7789-a24c-bacf01f92b4a",
+    "topology/participants/aaed8bf52b522576f5e07b5d11893091cf43fb72f2bd00d704a6b15f17996010",
+    "topology/hosts/aaed8bf52b522576f5e07b5d11893091cf43fb72f2bd00d704a6b15f17996010"
   ]
 }
