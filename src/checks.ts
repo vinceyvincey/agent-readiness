@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 export type Repo = { root: string };
 
 export type Difficulty = 'basic' | 'intermediate' | 'advanced';
-export type CheckResult = { id: string; pillar: string; pass: boolean; evidence: string; severity: 'high' | 'med' | 'low'; difficulty?: Difficulty; app?: string; skipped?: boolean };
+export type CheckResult = { id: string; pillar: string; pass: boolean; evidence: string; severity: 'high' | 'med' | 'low'; difficulty?: Difficulty; app?: string; skipped?: boolean; verified?: boolean; runtimeEvidence?: string };
 
 export interface Pillar {
   id: string;
@@ -291,6 +291,17 @@ const C: Array<() => Pillar> = [
       const hasPlatform = /buildpulse|datadog.*ci|test.?report|allure/i.test(pkg+wf);
       return { id: 'P2.11', pillar: 'P2', pass: hasTiming || hasPlatform, evidence: hasTiming ? 'test timing output configured' : hasPlatform ? 'test analytics platform' : 'no test performance tracking', severity: 'low', difficulty: 'intermediate' };
     },
+    // M16: unit_tests_runnable — test runner configured AND test files exist (runtime verification via --verify).
+    (r) => {
+      const pkg = read(r, 'package.json');
+      const pyproject = read(r, 'pyproject.toml');
+      const hasTestScript = /"test"\s*[:=]/.test(pkg) || /pytest/.test(pyproject) || has(r, 'Makefile') && /test/.test(read(r, 'Makefile'));
+      const hasTestFiles = dirs(r).some((d) => TESTDIRS.includes(d)) || dirs(r).some((f) => /(_test|_spec|\.test|\.spec)\./.test(f));
+      const hasRunner = has(r, 'vitest.config.ts') || has(r, 'vitest.config.js') || has(r, 'jest.config.ts') || has(r, 'jest.config.js') || has(r, 'pytest.ini') || /pytest/.test(pyproject) || has(r, 'go.mod');
+      // For Go, test files are *_test.go
+      const hasGoTests = has(r, 'go.mod') && readDirRecursive(r, '.').some(f => /_test\.go$/.test(f));
+      return { id: 'P2.12', pillar: 'P2', pass: (hasTestScript || hasRunner) && (hasTestFiles || hasGoTests), evidence: hasTestFiles || hasGoTests ? 'test runner + test files present' : 'test runner but no test files', severity: 'high', difficulty: 'intermediate' };
+    },
   ]}),
   () => ({ id: 'P3', scope: 'app', checks: [
     (r) => ({ id: 'P3.1', pillar: 'P3', pass: LOCK.some((l)=>has(r,l)), evidence: 'lockfile', severity: 'high', difficulty: 'basic' }),
@@ -441,6 +452,17 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P6.8', pillar: 'P6', pass: /onetrust|cookiebot|consent|gdpr|ccpa|data.?retention|privacy.?policy|right.?to.?be.?forgotten|data.?deletion/i.test(read(r,'package.json')+read(r,'requirements.txt')+read(r,'README.md')+read(r,'AGENTS.md')), evidence: 'privacy compliance infrastructure', severity: 'low', difficulty: 'intermediate' }),
     // M14: dast_scanning — OWASP ZAP, Nuclei in CI.
     (r) => ({ id: 'P6.9', pillar: 'P6', pass: /zap|owasp.?zap|nuclei|burp|stackhawk|acunetix/i.test(readWorkflows(r)+read(r,'package.json')), evidence: 'DAST scanning in CI', severity: 'low', difficulty: 'advanced' }),
+    // M16: pii_handling — PII detection tools, data masking, PII documentation.
+    (r) => {
+      const deps = read(r,'package.json')+read(r,'requirements.txt')+read(r,'pyproject.toml');
+      const docs = read(r,'AGENTS.md')+read(r,'README.md')+read(r,'docs','privacy.md')+read(r,'docs','data-handling.md');
+      const hasTools = /presidio|macie|dlp|detect-secrets|faker|masking|anonymiz/i.test(deps);
+      const hasDocs = /pii|personal.*data|gdpr|ccpa|data.?retention|privacy.?by.?design/i.test(docs);
+      // Skip if no user-facing code (no routes, no auth, no user model patterns)
+      const hasUserFacing = /route|router|auth|login|user|session|cookie|jwt|passport/i.test(read(r,'package.json')+read(r,'src','app.ts')+read(r,'src','app.js')+read(r,'src','index.ts')+read(r,'main.go'));
+      if (!hasUserFacing && !hasTools && !hasDocs) return skip('P6.10', 'P6', 'no user-facing code detected');
+      return { id: 'P6.10', pillar: 'P6', pass: hasTools || hasDocs, evidence: hasTools ? 'PII detection tooling found' : hasDocs ? 'PII handling documented' : 'no PII handling', severity: 'med', difficulty: 'intermediate' };
+    },
   ]}),
   () => ({ id: 'P7', scope: 'app', checks: [
     (r) => ({ id: 'P7.1', pillar: 'P7', pass: has(r,'src','logging')||has(r,'src','logger')||/winston|pino|structlog|logging/i.test(read(r,'package.json')+read(r,'requirements.txt')), evidence: 'structured logging', severity: 'med', difficulty: 'intermediate' }),
@@ -467,6 +489,31 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P7.13', pillar: 'P7', pass: /datadog.*apm|dynatrace|pyroscope|parca|cloud.?profiler|clinic\.js|\b0x\b|flame.?graph/i.test(read(r,'package.json')+read(r,'requirements.txt')+read(r,'pyproject.toml')+read(r,'go.mod')+readWorkflows(r)), evidence: 'profiling instrumentation', severity: 'low', difficulty: 'advanced' }),
     // M14: error_to_insight_pipeline — Sentry-GitHub integration, error-to-issue automation.
     (r) => ({ id: 'P7.14', pillar: 'P7', pass: /sentry.*webhook|SENTRY_ORG|SENTRY_PROJECT|error.?to.?issue|pagerduty.*issue/i.test(readWorkflows(r)+read(r,'.env.example')+read(r,'package.json')) || /sentry\.io/i.test(readWorkflows(r)), evidence: 'error-to-insight pipeline', severity: 'low', difficulty: 'advanced' }),
+    // M16: circuit_breakers — circuit breaker libraries, service mesh, custom patterns.
+    (r) => {
+      const deps = read(r,'package.json')+read(r,'requirements.txt')+read(r,'pyproject.toml')+read(r,'go.mod')+read(r,'Cargo.toml');
+      const source = readDirRecursive(r, 'src').map(f => readRel(r, 'src/'+f)).join('\n');
+      const config = readWorkflows(r)+read(r,'docker-compose.yml')+read(r,'k8s')+read(r,'deploy');
+      const hasLib = /opossum|cockatiel|resilience4j|polly|tenacity|circuit.?breaker/i.test(deps);
+      const hasCustom = /circuit.*breaker|fallback|retry.*backoff|exponential.?backoff/i.test(source);
+      const hasMesh = /istio|linkerd/i.test(config+deps);
+      // Skip if no external service dependencies (no HTTP client, DB client, message queue)
+      const hasExternalDeps = /axios|fetch|got|request|httpx|requests|redis|amqp|kafka|rabbitmq|grpc|postgres|mysql|mongo|prisma|typeorm|sqlalchemy|gorm/i.test(deps);
+      if (!hasExternalDeps && !hasLib && !hasCustom && !hasMesh) return skip('P7.15', 'P7', 'no external service dependencies');
+      return { id: 'P7.15', pillar: 'P7', pass: hasLib || hasCustom || hasMesh, evidence: hasLib ? 'circuit breaker library' : hasCustom ? 'custom resilience pattern' : hasMesh ? 'service mesh circuit breaking' : 'no circuit breaker', severity: 'low', difficulty: 'advanced' };
+    },
+    // M16: log_scrubbing — log redaction, sanitization, masking in logging code.
+    (r) => {
+      const deps = read(r,'package.json')+read(r,'requirements.txt')+read(r,'pyproject.toml');
+      const source = readDirRecursive(r, 'src').map(f => readRel(r, 'src/'+f)).join('\n');
+      const config = read(r,'pino.config.js')+read(r,'pino.config.ts')+read(r,'vitest.config.ts')+read(r,'vitest.config.js')+read(r,'winston.config.js')+read(r,'winston.config.ts');
+      const docs = read(r,'AGENTS.md')+read(r,'README.md')+read(r,'docs','logging.md');
+      const hasRedactConfig = /redact/i.test(config);
+      const hasRedactCode = /redact|sanitiz|mask/i.test(source);
+      const hasLibRedact = /pino.*redact|winston.*format.*filter|structlog.*processor/i.test(deps+config);
+      const hasDocs = /log.*scrub|log.*sanitiz|log.*redact|pii.*log/i.test(docs);
+      return { id: 'P7.16', pillar: 'P7', pass: hasRedactConfig || hasRedactCode || hasLibRedact || hasDocs, evidence: hasRedactConfig ? 'log redaction config' : hasRedactCode ? 'log sanitization in code' : hasLibRedact ? 'logging library redaction' : hasDocs ? 'log scrubbing documented' : 'no log scrubbing', severity: 'med', difficulty: 'intermediate' };
+    },
   ]}),
   () => ({ id: 'P8', scope: 'repo', checks: [
     (r) => ({ id: 'P8.1', pillar: 'P8', pass: has(r,'.env.example') || has(r,'.env.sample'), evidence: '.env.example', severity: 'high', difficulty: 'basic' }),

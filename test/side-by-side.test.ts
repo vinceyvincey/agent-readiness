@@ -102,6 +102,7 @@ const mockPiFindings: CheckResult[] = [
   { id: 'P5.1', pillar: 'P5', pass: true, evidence: 'ESLint found', severity: 'high' },
   { id: 'P5.3', pillar: 'P5', pass: false, evidence: 'No tsconfig', severity: 'high' },
   { id: 'P2.1', pillar: 'P2', pass: false, evidence: 'No tests', severity: 'high' },
+  { id: 'P7.15', pillar: 'P7', pass: false, evidence: 'No circuit breakers', severity: 'low' },
 ];
 
 const mockDroidSignals: DroidSignal[] = [
@@ -123,8 +124,9 @@ eq('compareCriteria agree-fail (arch)', comparisons[2].agreement, 'agree-fail');
 eq('compareCriteria agree-pass (linter)', comparisons[3].agreement, 'agree-pass');
 eq('compareCriteria agree-fail (type_check)', comparisons[4].agreement, 'agree-fail');
 eq('compareCriteria agree-fail (tests)', comparisons[5].agreement, 'agree-fail');
-eq('compareCriteria agent-only (circuit_breakers)', comparisons[6].agreement, 'agent-only');
-eq('compareCriteria circuit_breakers has null piId', comparisons[6].piId, null);
+// M16: circuit_breakers now mapped to P7.15 — no longer agent-only
+eq('compareCriteria agree-fail (circuit_breakers)', comparisons[6].agreement, 'agree-fail');
+eq('compareCriteria circuit_breakers maps to P7.15', comparisons[6].piId, 'P7.15');
 
 // Test pi-lenient: pi says pass, droid says fail
 const lenientSignals: DroidSignal[] = [
@@ -149,12 +151,12 @@ eq('compareCriteria pi-strict', strictComparisons[0].agreement, 'pi-strict');
 // ---- Summary aggregation ----
 
 const summary = summarizeComparison(comparisons);
-eq('summarize agreementRate', summary.agreementRate, Math.round((3 + 3) / 7 * 1000) / 10);
+eq('summarize agreementRate', summary.agreementRate, Math.round((2 + 5) / 7 * 1000) / 10);
 eq('summarize agreePass', summary.agreePass, 2);
-eq('summarize agreeFail', summary.agreeFail, 4); // agents_md, arch, type_check, tests = 4 fails both
+eq('summarize agreeFail', summary.agreeFail, 5); // agents_md, arch, type_check, tests, circuit_breakers = 5 fails both
 eq('summarize piLenient', summary.piLenient, 0);
 eq('summarize piStrict', summary.piStrict, 0);
-eq('summarize agentOnly', summary.agentOnly, 1);
+eq('summarize agentOnly', summary.agentOnly, 0); // M16: circuit_breakers now mapped
 
 // ---- Hybrid comparison (pi hybrid ceiling vs Droid) ----
 

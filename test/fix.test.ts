@@ -1,6 +1,6 @@
 // M9: tests for agentic remediation prompt generation + static fix drafts (no regression).
 import { runReadiness } from '../src/engine.ts';
-import { agentPromptFor, draftsFor } from '../src/fix.ts';
+import { agentPromptFor, assessmentPromptFor, draftsFor } from '../src/fix.ts';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -99,6 +99,83 @@ function write(d: string, rel: string, content: string) {
   eq('static drafts produced', drafts.length > 0, true);
   // Should include AGENTS.md draft (P1.1/P1.2 will fail)
   eq('drafts include AGENTS.md', drafts.some((dr) => dr.file === 'AGENTS.md'), true);
+}
+
+// ---- M15: assessmentPromptFor enriched with 5-phase Droid-style methodology ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const r = runReadiness(d);
+  const prompt = assessmentPromptFor(r);
+
+  // 5-phase methodology headers
+  eq('assessment has Phase 1', prompt.includes('Phase 1 - Repository Scan'), true);
+  eq('assessment has Phase 2', prompt.includes('Phase 2 - Application Discovery'), true);
+  eq('assessment has Phase 3', prompt.includes('Phase 3 - Criterion Evaluation'), true);
+  eq('assessment has Phase 4', prompt.includes('Phase 4 - Report Validation'), true);
+  eq('assessment has Phase 5', prompt.includes('Phase 5 - Scoring'), true);
+
+  // Do-not-modify instruction
+  eq('assessment says DO NOT modify', prompt.includes('DO NOT modify'), true);
+
+  // Deterministic floor score included
+  eq('assessment has floor score', prompt.includes(String(r.overall)), true);
+  eq('assessment has floor level', prompt.includes(r.level), true);
+
+  // Full (non-truncated) descriptions — prompt should be substantially longer than old 200-char truncation
+  eq('assessment prompt is substantial', prompt.length > 5000, true);
+
+  // All failing checks included (not just top 10)
+  const allFailing = r.findings.filter((f) => !f.pass && !f.skipped);
+  const lastFail = allFailing[allFailing.length - 1];
+  eq('assessment includes all failing checks', lastFail ? prompt.includes(lastFail.id) : true, true);
+
+  // Scope info included
+  eq('assessment has scope info', prompt.includes('per-application') || prompt.includes('repository-wide'), true);
+
+  // App discovery instructions
+  eq('assessment has app discovery', prompt.includes('independently deployable'), true);
+
+  // Structured output format
+  eq('assessment has verification results format', prompt.includes('### Verification Results'), true);
+  eq('assessment has agent-only criteria format', prompt.includes('### Agent-Only Criteria'), true);
+  eq('assessment has augmented score format', prompt.includes('### Augmented Score'), true);
+  eq('assessment has action items format', prompt.includes('### Action Items'), true);
+
+  // Agent-only verification commands present (4 remaining after M16 Part A)
+  eq('assessment has --listTests command', prompt.includes('--listTests'), true);
+  eq('assessment has --collect-only command', prompt.includes('--collect-only'), true);
+  eq('assessment has devcontainer up command', prompt.includes('devcontainer up'), true);
+
+  // 3 agent-only droidIds mentioned (after M16: unit_tests_runnable now deterministic)
+  const agentOnlyIds = ['devcontainer_runnable', 'n_plus_one_detection',
+    'interactive_qa_runnable'];
+  for (const id of agentOnlyIds) {
+    eq(`assessment mentions ${id}`, prompt.includes(id), true);
+  }
+
+  // Formerly agent-only criteria are NOT in agent-only section (now deterministic)
+  eq('assessment does not mention circuit_breakers as agent-only', agentOnlyIds.includes('circuit_breakers'), false);
+  eq('assessment does not mention pii_handling as agent-only', agentOnlyIds.includes('pii_handling'), false);
+  eq('assessment does not mention log_scrubbing as agent-only', agentOnlyIds.includes('log_scrubbing'), false);
+  eq('assessment does not mention unit_tests_runnable as agent-only', agentOnlyIds.includes('unit_tests_runnable'), false);
+
+  // Skip condition notes for skippable criteria
+  eq('assessment has skip notes', prompt.includes('[Skippable]'), true);
+}
+
+// ---- assessmentPromptFor: monorepo awareness ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ workspaces: ['packages/*'] }));
+  write(d, 'packages/web/package.json', JSON.stringify({ name: 'web' }));
+  write(d, 'packages/api/package.json', JSON.stringify({ name: 'api' }));
+  write(d, 'README.md', '# Monorepo\n\nA test monorepo with web and api packages.\n');
+  write(d, '.gitignore', '.env\nnode_modules\ndist\n');
+  const r = runReadiness(d);
+  const prompt = assessmentPromptFor(r);
+  eq('assessment mentions monorepo', prompt.includes('monorepo'), true);
+  eq('assessment lists apps in prompt', prompt.includes('packages/web') && prompt.includes('packages/api'), true);
 }
 
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));

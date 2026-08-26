@@ -4,7 +4,7 @@ description: Assess a codebase's readiness for autonomous AI coding agents acros
 license: MIT
 compatibility: pi shell with git + standard language toolchains (node, python, go, rust, etc.)
 metadata:
-  rubric_version: 0.7.0
+  rubric_version: 0.9.0
   pillars: 10
   levels: L0-L5
 ---

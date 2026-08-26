@@ -79,74 +79,202 @@ export function writeFixes(target: string, drafts: FixDraft[], apply = false): s
 // - Quality standards (no empty placeholders, no gaming the metric)
 // This is the single source the extension and CLI both use to drive agent-driven fixes.
 
-// M14: Assessment-only prompt — instructs agent to verify findings and discover agent-only
-// criteria WITHOUT modifying any files. Used for fair comparison with Droid /readiness-report.
+// M15: Enriched assessment-only prompt — mirrors Droid's 5-phase methodology
+// (Scan → App Discovery → Evaluation → Validation → Scoring) with full per-criterion
+// descriptions, evaluation instructions, and specific behavioral verification commands
+// for the 7 agent-only criteria. Used for fair comparison with Droid /readiness-report.
+// Does NOT modify files.
+
+// Per-criterion verification commands for the 7 agent-only criteria.
+function agentOnlyVerificationCommands(droidId: string): string {
+  const commands: Record<string, string> = {
+    devcontainer_runnable: [
+      '- Check if devcontainer CLI is installed: `which devcontainer`',
+      '- If installed, attempt build: `devcontainer up --workspace-folder .`',
+      '- Verify the container starts and the workspace mounts correctly',
+      '- Skip if devcontainer CLI is not installed or .devcontainer/ does not exist',
+    ].join('\n'),
+    n_plus_one_detection: [
+      '- Search for N+1 detection libraries: `grep -ri "bullet\\|nplusone\\|dataloader" --include="*.ts" --include="*.py" --include="*.rb" .`',
+      '- Check ORM query logging: `grep -ri "query_log\\|slow_query\\|n+1" .`',
+      '- Check for APM slow query detection in config files',
+      '- Skip for apps without database/ORM usage (check for Prisma, SQLAlchemy, ActiveRecord, TypeORM, etc.)',
+    ].join('\n'),
+    interactive_qa_runnable: [
+      '- Follow the documented QA path (from interactive_qa_exists criterion)',
+      '- Step 1: install deps, stand up required local services, load env vars, launch the app',
+      '- Step 2: drive at least one meaningful interaction:',
+      '  - Web: load a page and click a button',
+      '  - CLI: run a command and read output',
+      '  - API: hit an endpoint and get a 2xx response',
+      '  - Mobile: launch in simulator and interact',
+      '- Step 3: FAIL if cannot reach interactive state (missing deps, auth gate with no bypass, etc.)',
+      '- If actually running is not feasible, verify a complete agent-followable path exists in docs',
+    ].join('\n'),
+  };
+  return commands[droidId] || '- Evaluate based on the description and evaluation instructions above';
+}
+
 export function assessmentPromptFor(report: ReadinessReport): string {
   const failed = report.findings.filter((c) => !c.pass && !c.skipped);
   const skipped = report.findings.filter((c) => c.skipped);
+  const passed = report.findings.filter((c) => c.pass && !c.skipped);
   const agentOnly = getAgentOnlyCriteria();
+  const isMonorepo = Object.keys(report.apps).length > 1;
 
-  const items = failed.slice(0, 10).map((c) => {
-    const reg = getCriterionByPiId(c.id);
-    const desc = reg ? reg.description.substring(0, 200) : '';
-    return `### ${c.pillar} ${c.id} [${c.severity}]
-**Evidence**: ${c.evidence}${desc ? `\n**Description**: ${desc}` : ''}
-**Verify**: Run the actual command (e.g., \`npm test\`, \`npm run lint\`, \`tsc --noEmit\`) to confirm this truly fails. If it passes behaviorally, mark as false positive.`;
-  }).join('\n\n');
+  // Group failing checks by pillar for readability.
+  const pillars: Record<string, typeof failed> = {};
+  for (const c of failed) {
+    if (!pillars[c.pillar]) pillars[c.pillar] = [];
+    pillars[c.pillar].push(c);
+  }
+  const pillarOrder = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9'];
+  const pillarNames: Record<string, string> = {
+    P0: 'Documentation', P1: 'Agent Guidance', P2: 'Testing', P3: 'Build & Dependencies',
+    P4: 'CI & Release', P5: 'Code Quality', P6: 'Security', P7: 'Observability',
+    P8: 'Environment', P9: 'Modularity',
+  };
 
+  // Build detailed verification items with FULL descriptions and evaluations (no truncation).
+  const pillarSections = pillarOrder
+    .filter(p => pillars[p] && pillars[p].length > 0)
+    .map(p => {
+      const items = pillars[p].map((c) => {
+        const reg = getCriterionByPiId(c.id);
+        const desc = reg ? reg.description : '';
+        const evalInstr = reg ? reg.evaluation : '';
+        const scope = reg ? reg.scope : 'repo';
+        const skipNote = reg?.skippable ? ' [Skippable]' : '';
+        return `#### ${c.id} [${c.severity}]${skipNote}
+**Scope**: ${scope === 'app' ? 'per-application' : 'repository-wide'}
+**Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}
+${desc ? `**Description**: ${desc}` : ''}
+${evalInstr ? `**Evaluation**: ${evalInstr}` : ''}
+**Verify**: Run the actual command (e.g., \`npm test\`, \`npm run lint\`, \`tsc --noEmit\`, \`gh api ...\`) to confirm this truly fails. If it passes behaviorally, mark as false positive.`;
+      }).join('\n\n');
+      return `### ${p} — ${pillarNames[p]} (${pillars[p].length} failing)\n\n${items}`;
+    }).join('\n\n');
+
+  // Build FULL agent-only criteria with complete descriptions, evaluations, and verification commands.
   const agentOnlySection = agentOnly.map((c) => {
-    return `### ${c.droidId} [L${c.level}/${c.scope}${c.skippable ? ', skippable' : ''}]
-**Description**: ${c.description.substring(0, 200)}
-**Evaluation**: ${c.evaluation.substring(0, 200)}`;
+    const skipNote = c.skippable ? ' [Skippable]' : '';
+    return `### ${c.droidId} [L${c.level}/${c.scope}${skipNote}]
+**Description**: ${c.description}
+**Evaluation**: ${c.evaluation}
+**Verification commands**:
+${agentOnlyVerificationCommands(c.droidId)}`;
   }).join('\n\n');
 
   const skippedInfo = skipped.length > 0
-    ? `\n**Skipped checks** (${skipped.length}): ${skipped.map(s => s.id).join(', ')} — these require gh CLI or other prerequisites not available.\n`
+    ? `\n**Skipped checks** (${skipped.length}): ${skipped.map(s => s.id).join(', ')} — these require gh CLI or other prerequisites not available. Attempt them if possible.\n`
     : '';
 
-  return `You are assessing agent readiness in a codebase. DO NOT modify any files.
+  const appInfo = isMonorepo
+    ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps).map(([p2, a]) => `${p2} (${a.name})`).join(', ')}.\n`
+    : '\n';
 
-Current deterministic score: ${report.level} (${report.overall}/100), rubric ${report.rubric_version}.
-Repo: ${report.repo.path} (${report.repo.language})${skippedInfo}
+  const lang = report.repo.language;
+  const langContext = lang !== 'unknown' ? `Language: ${lang}. ` : '';
 
-## Your task (assessment only — DO NOT modify files)
+  return `You are an Agent Readiness evaluator, a static repository auditor specialized in evaluating codebases for autonomous agent readiness. You are objective, thorough, and deterministic in your evaluations.
 
-1. **Verify**: For each failing check below, run the actual command to confirm it truly fails.
-   - If a check passes behaviorally (e.g., vitest.config.ts exists AND \`npm test -- --listTests\` succeeds), it's a false positive — note it.
-   - If a check fails behaviorally, confirm the deterministic engine was correct.
+**CRITICAL: DO NOT modify any files. This is an assessment-only evaluation.**
 
-2. **Discover**: Evaluate the ${agentOnly.length} agent-only criteria listed below.
-   - These require runtime verification, code analysis, or external API access.
-   - For each, determine PASS/FAIL/SKIP and note evidence.
+Repository: ${report.repo.path}
+${langContext}Current deterministic score: ${report.level} (${report.overall}/100), rubric ${report.rubric_version}.${skippedInfo}${appInfo}
+## Phase 1 - Repository Scan
 
-3. **Report**: Summarize your findings:
-   - Which deterministic checks are false positives (engine said fail, but actually passes)?
-   - Which agent-only criteria fail?
-   - What is the true readiness score (deterministic floor + agent-only adjustments)?
+1. **Detect repository language**
+   - JS/TS: package.json, tsconfig.json, .js/.ts/.jsx/.tsx files
+   - Python: pyproject.toml, setup.py, requirements.txt, .py files
+   - Rust: Cargo.toml, .rs files
+   - Go: go.mod, .go files
+   - Java: pom.xml, build.gradle, .java files
+   - Ruby: Gemfile, .gemspec, .rb files
+   - Record primary language(s) detected
 
-## Failing checks to verify (${failed.length} total, showing top 10)
+2. **Explore the repository structure**
+   - Walk the file tree within the git repository (from repo root)
+   - Ignore .git, node_modules, dist, build directories
+   - Identify main source directories (src/, app/, lib/, etc.)
+   - Locate configuration files, documentation, and test directories
 
-${items}
+## Phase 2 - Application Discovery
 
-## Agent-only criteria (${agentOnly.length} — not checked by deterministic engine)
+Identify all independently deployable applications in the repository:
+- An application is a **directory** that represents an independently deployable unit
+- Has its own deployment lifecycle, can be built and run independently
+- Shared libraries are NOT applications (they're imported by applications)
+- If you find 0 applications, count the repository root (.) as 1 application
+
+Record: N applications with their paths and brief descriptions.
+
+**Commitment**: Use denominator = N for all 40 app-scoped criteria, denominator = 1 for all 44 repo-scoped criteria.
+
+## Phase 3 - Criterion Evaluation
+
+### 3a. Deterministic Verification (${failed.length + passed.length} criteria already checked by engine)
+
+The deterministic engine has checked ${failed.length + passed.length} of 84 criteria. Your job is to **verify the engine's findings behaviorally** — confirm that failing checks truly fail and passing checks truly pass by running actual commands.
+
+${failed.length} checks are currently failing. For each one:
+- Read the full description and evaluation instructions below
+- Run the actual verification command to confirm it truly fails
+- If it passes behaviorally (e.g., config file exists AND the command runs successfully), it's a **false positive** — note it
+- If it fails behaviorally, confirm the engine was correct
+
+${pillarSections}
+
+### 3b. Agent-Only Evaluation (${agentOnly.length} criteria not checked by engine)
+
+The following ${agentOnly.length} criteria require runtime verification, code analysis, or external API access. Evaluate each one from scratch:
 
 ${agentOnlySection}
 
-## Output format
+## Phase 4 - Report Validation
 
-Please structure your response as:
+Before producing your report, validate:
+
+1. **Application count consistency**: All app-scoped criteria use denominator = N, repo-scoped use 1
+2. **Completeness**: All 84 criteria evaluated (77 deterministic + 7 agent-only)
+3. **Evidence quality**: Each finding has a concrete command or file reference as evidence
+4. **False positive identification**: Clearly distinguish confirmed failures from false positives
+
+## Phase 5 - Scoring & Report
+
+Calculate the augmented score:
+- **Deterministic floor**: ${report.overall}/100 (${report.level})
+- **Adjustments**:
+  - **False positives**: For each check the engine marked as failing but passes behaviorally, the true score is higher
+  - **Agent-only failures**: For each agent-only criterion that fails, the true score is lower
+  - **Skipped criteria**: Excluded from scoring (neither pass nor fail)
+
+Produce your report in this structured format:
 
 ### Verification Results
-- [check-id] VERIFIED FAIL / FALSE POSITIVE — [evidence]
+For each deterministic failing check:
+- [check-id] VERIFIED FAIL / FALSE POSITIVE — [evidence: command run + output summary]
 
 ### Agent-Only Criteria
-- [droid-id] PASS / FAIL / SKIP — [evidence]
+For each of the 7 agent-only criteria:
+- [droid-id] PASS / FAIL / SKIP — [evidence: evaluation method + findings]
+
+### Application Discovery
+- N applications identified:
+  1. [path] - [description]
+  2. ...
 
 ### Augmented Score
 - Deterministic floor: ${report.overall}/100 (${report.level})
-- False positives found: [count]
-- Agent-only failures: [count]
-- Augmented score: [estimated score] / 100`;
+- False positives found: [count] (engine said fail, but actually passes)
+- Agent-only results: [N pass, N fail, N skip]
+- Augmented score: [estimated] / 100
+- Estimated level: [L0-L5]
+
+### Action Items
+List 2-3 highest-impact next steps to improve readiness:
+- [specific, actionable recommendation]
+- [specific, actionable recommendation]`;
 }
 
 export function agentPromptFor(report: ReadinessReport): string {
@@ -250,6 +378,11 @@ export function agentPromptFor(report: ReadinessReport): string {
     'P7.14': 'Add error-to-insight pipeline: configure Sentry-GitHub integration or error-to-issue automation.',
     'P8.7': 'Add interactive QA documentation: document how to run and exercise the app end-to-end.',
     'P8.8': 'Add database schema files: create Prisma schema, SQLAlchemy models, or SQL migrations.',
+    // M16: new check remediation actions
+    'P7.15': 'Add circuit breakers: install opossum/cockatiel (Node.js), resilience4j (Java), tenacity (Python), or configure service mesh circuit breaking.',
+    'P7.16': 'Add log scrubbing: configure pino redact, winston format filtering, or structlog processors. Add custom log sanitization middleware.',
+    'P6.10': 'Add PII handling: install Presidio/DLP tools, add data masking libraries, or document PII handling procedures in AGENTS.md.',
+    'P2.12': 'Ensure tests are runnable: verify test command exits 0 with --listTests/--collect-only. Fix any configuration or dependency issues.',
   };
 
   // M12: Build items with full criterion descriptions from the registry (like Droid's fix prompt).

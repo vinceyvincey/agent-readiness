@@ -157,6 +157,29 @@
 - [x] Rubric bumped to 0.7.0. ~103 total checks across 10 pillars.
 - Verify: all 8 test suites pass (191 total assertions); E1 harness all pass (H1 gap=46).
 
+## M15 - Enrich assessmentPromptFor with Droid-style 5-phase evaluation depth - DONE
+- [x] Rewrote `assessmentPromptFor()` in `src/fix.ts` to mirror Droid's 5-phase methodology:
+  - Phase 1: Repository Scan (language detection, repo structure exploration, git boundaries)
+  - Phase 2: Application Discovery (identify independently deployable apps, record N, set denominators)
+  - Phase 3: Criterion Evaluation (3a: verify all deterministic failures with full descriptions + evaluations; 3b: evaluate 7 agent-only criteria with full descriptions + evaluations + specific verification commands)
+  - Phase 4: Report Validation (app count consistency, completeness, evidence quality, false positive identification)
+  - Phase 5: Scoring & Report (augmented score = deterministic floor ± adjustments, structured output format)
+- [x] New helper `agentOnlyVerificationCommands(droidId)`: exact shell commands for each of the 7 agent-only criteria (devcontainer_runnable, n_plus_one_detection, unit_tests_runnable, interactive_qa_runnable, circuit_breakers, pii_handling, log_scrubbing)
+- [x] Full (non-truncated) descriptions and evaluation instructions from registry for ALL failing checks, grouped by pillar
+- [x] ALL failing checks shown (not just top 10), organized by pillar for readability
+- [x] Skip condition notes ([Skippable]) for skippable criteria
+- [x] Structured output format: Verification Results, Agent-Only Criteria, Application Discovery, Augmented Score, Action Items
+- [x] Monorepo awareness: app list included in prompt when multiple apps detected
+- [x] Rubric bumped to 0.8.0. Added 32 new assertions in test/fix.test.ts for assessment prompt (5 phases, verification commands, all 7 agent-only droidIds, scope info, app discovery, structured output, skip notes, monorepo awareness).
+- Verify: all 8 test suites pass (223 total assertions); run 3-way side-by-side harness to measure agreement improvement.
+
+## M16 - Close remaining parity gaps (3 parts) - DONE
+- [x] Part A: 3 new deterministic grep-based checks — P7.15 (circuit_breakers), P7.16 (log_scrubbing), P6.10 (pii_handling). Agent-only 7→4. Pi-mapped 77→80.
+- [x] Part B: Runtime verification layer — new `src/runtime-checks.ts`. `--verify` flag runs actual commands (`npm test -- --listTests`, `tsc --noEmit`, `npm run lint`, `npm run build`) to verify configs work, not just exist. Downgrades passing checks to failing when runtime verification fails. Language-aware (TS/JS, Python, Go, Rust). Handles missing commands/timeouts gracefully. New P2.12 (unit_tests_runnable) deterministic check. Agent-only 4→3. Pi-mapped 80→81 (96%).
+- [x] Part C: Droid-compatible flat pass rate — `droidPassRate` field in ReadinessReport and report.md. Calculated as (non-skipped passing mapped criteria) / (total non-skipped mapped criteria). Enables direct score comparison with Droid's model.
+- [x] Rubric bumped to 0.9.0. New test/runtime-checks.test.ts (31 assertions). Updated all affected tests. 9 test suites, 254 total assertions.
+- Verify: all 9 test suites pass; run 3-way side-by-side harness to measure agreement improvement.
+
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).
 - Every deterministic check documented: file glob + evidence rule + pass/fail.

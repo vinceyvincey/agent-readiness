@@ -911,11 +911,12 @@ function main() {
     // Pi hybrid assessment (deterministic floor + agent ceiling)
     let piHybrid: PiHybridAssessment | null = null;
     if (!skipHybrid && droidAvailable) {
-      console.log('Running pi hybrid assessment (agentPromptFor via Droid)...');
+      console.log('Running pi hybrid assessment (assessmentPromptFor via Droid)...');
       piHybrid = runPiHybridAssessment(abs, name, baseDir, timeoutSec);
-      console.log(`  Pi hybrid: ${piHybrid.floorScore} → ${piHybrid.ceilingScore} (${piHybrid.scoreDelta >= 0 ? '+' : ''}${piHybrid.scoreDelta}) in ${formatMs(piHybrid.agentDurationMs)}`);
-      console.log(`  Fixed checks: ${piHybrid.fixedCheckIds.length} (${piHybrid.fixedCheckIds.join(', ') || 'none'})`);
-      console.log(`  Agent-only mentioned: ${piHybrid.agentOnlyMentioned.length}`);
+      console.log(`  Pi hybrid: floor ${piHybrid.floorScore}/100 (${piHybrid.floorLevel}) in ${formatMs(piHybrid.agentDurationMs)}`);
+      console.log(`  Findings to verify: ${piHybrid.findingsToVerify}`);
+      console.log(`  Agent-only mentioned: ${piHybrid.agentOnlyMentioned.length} (${piHybrid.agentOnlyMentioned.join(', ') || 'none'})`);
+      console.log(`  Skipped checks: ${piHybrid.skippedCheckIds.length} (${piHybrid.skippedCheckIds.join(', ') || 'none'})`);
       if (piHybrid.agentError) console.log(`  Hybrid error: ${piHybrid.agentError}`);
     }
 
@@ -1001,7 +1002,7 @@ function main() {
   // Print summary to console
   console.log('\n=== Summary ===');
   for (const r of reports) {
-    const hybrid = r.piHybrid ? ` hybrid=${r.piHybrid.ceilingScore}(${r.piHybrid.scoreDelta >= 0 ? '+' : ''}${r.piHybrid.scoreDelta})` : '';
+    const hybrid = r.piHybrid ? ` hybrid_floor=${r.piHybrid.floorScore} agentOnly=${r.piHybrid.agentOnlyMentioned.length}` : '';
     console.log(`${r.repo}: pi=${r.pi.level}(${r.pi.overall})${hybrid} droid=L${r.droid.level}(${r.droid.passRate}%) agreement=${r.summary.agreementRate}%${r.piHybrid ? ` hybrid_agreement=${r.summary.hybridAgreementRate}%` : ''}`);
   }
 

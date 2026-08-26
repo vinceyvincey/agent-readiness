@@ -6,8 +6,10 @@ import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { appendHistory } from './history.ts';
+import { getRuntimeVerifications, runRuntimeVerifications, applyRuntimeResults } from './runtime-checks.ts';
+import { getCriterionByPiId } from './criteria-registry.ts';
 
-export const RUBRIC_VERSION = '0.7.0';
+export const RUBRIC_VERSION = '0.9.0';
 
 // Level gate map: each entry is the set of pillars that must each pass the 80% gate.
 export const LEVEL_GATES: Record<string, string[]> = {
@@ -45,6 +47,7 @@ export interface ReadinessReport {
   pillars: Record<string, PillarScore>;
   weights: Record<string, number>;
   overall: number;
+  droidPassRate: number;  // M16: flat pass rate compatible with Droid's scoring model
   level: string;
   judgment: string[];
   punchlist: PunchItem[];
@@ -97,7 +100,7 @@ function scorePillar(checks: CheckResult[]): PillarScore {
   return { passed, total, pct: Math.round((passed / total) * 1000) / 10 };
 }
 
-export function runReadiness(root: string, opts: { weights?: Record<string, number>; model?: string; strict?: boolean } = {}): ReadinessReport {
+export function runReadiness(root: string, opts: { weights?: Record<string, number>; model?: string; strict?: boolean; verify?: boolean } = {}): ReadinessReport {
   const apps = discoverApps(root);
   const pillars: Record<string, PillarScore> = {};
   const findings: CheckResult[] = [];
@@ -141,7 +144,31 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
 
   const weights: Record<string, number> = {};
   for (const p of getPillars()) weights[p.id] = opts.weights?.[p.id] ?? 0.1;
-  const overall = getPillars().reduce((a, p) => a + (pillars[p.id].pct / 100) * weights[p.id], 0);
+  let overall = getPillars().reduce((a, p) => a + (pillars[p.id].pct / 100) * weights[p.id], 0);
+
+  // M16: Runtime verification pass — actually run commands to verify configs work.
+  if (opts.verify) {
+    const lang = detectLanguage(root);
+    const passingIds = new Set(findings.filter(f => f.pass && !f.skipped).map(f => f.id));
+    const verifications = getRuntimeVerifications(root, lang, passingIds);
+    if (verifications.length > 0) {
+      const runtimeResults = runRuntimeVerifications(root, verifications);
+      const updatedFindings = applyRuntimeResults(findings, runtimeResults);
+      findings.length = 0;
+      findings.push(...updatedFindings);
+      for (const p of getPillars()) {
+        const pChecks = findings.filter(f => f.pillar === p.id);
+        pillars[p.id] = scorePillar(pChecks);
+      }
+      overall = getPillars().reduce((a, p) => a + (pillars[p.id].pct / 100) * weights[p.id], 0);
+    }
+  }
+
+  // M16: Droid-compatible flat pass rate.
+  const nonSkippedMapped = findings.filter(f => !f.skipped && getCriterionByPiId(f.id));
+  const droidPassRate = nonSkippedMapped.length > 0
+    ? Math.round((nonSkippedMapped.filter(f => f.pass).length / nonSkippedMapped.length) * 1000) / 10
+    : 0;
 
   // Level resolution via N-1 gating across the level's required pillars.
   const level = resolveLevel(pillars);
@@ -227,6 +254,11 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
     'P7.14': 'Add error-to-insight pipeline: configure Sentry-GitHub integration or error-to-issue automation.',
     'P8.7': 'Add interactive QA documentation: document how to run and exercise the app end-to-end.',
     'P8.8': 'Add database schema files: create Prisma schema, SQLAlchemy models, or SQL migrations.',
+    // M16: new check remediation actions
+    'P7.15': 'Add circuit breakers: install opossum/cockatiel (Node.js), resilience4j (Java), tenacity (Python), or configure service mesh circuit breaking.',
+    'P7.16': 'Add log scrubbing: configure pino redact, winston format filtering, or structlog processors. Add custom log sanitization middleware.',
+    'P6.10': 'Add PII handling: install Presidio/DLP tools, add data masking libraries, or document PII handling procedures in AGENTS.md.',
+    'P2.12': 'Ensure tests are runnable: verify test command exits 0 with --listTests/--collect-only. Fix any configuration or dependency issues.',
   };
   const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
@@ -244,6 +276,7 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
     pillars,
     weights,
     overall: Math.round(overall * 1000) / 10,
+    droidPassRate,
     level,
     judgment: [], // filled by the skill/extension narrative pass; excluded from score.
     punchlist,
@@ -263,7 +296,7 @@ export function renderMarkdown(report: ReadinessReport): string {
   const appList = Object.keys(report.apps).length > 1
     ? `\n\n## Applications discovered\n${Object.entries(report.apps).map(([p, a]) => `- \`${p}\` — ${a.name} (${a.type})${a.description ? ': ' + a.description : ''}`).join('\n')}`
     : '';
-  return `# Agent Readiness Report\n\n- Level: **${report.level}**\n- Overall: **${report.overall}/100**\n- rubric_version: ${report.rubric_version} · config_hash: ${report.config_hash}\n- repo: ${report.repo.path} (${report.repo.language})${commit}\n\n## Pillars\n| Pillar | Passed/Total | Pct (per-app) |\n|---|---|---|\n${rows}\n\n## Top Punchlist (severity → difficulty)\n${punch}${appList}\n\n_Run ${report.run.date} · model ${report.run.model} · strict=${report.run.strict}_\n`;
+  return `# Agent Readiness Report\n\n- Level: **${report.level}**\n- Overall: **${report.overall}/100** (weighted, N-1 gated)\n- Droid-compatible pass rate: **${report.droidPassRate}%** (flat, all signals weighted equally)\n- rubric_version: ${report.rubric_version} · config_hash: ${report.config_hash}\n- repo: ${report.repo.path} (${report.repo.language})${commit}\n\n## Pillars\n| Pillar | Passed/Total | Pct (per-app) |\n|---|---|---|\n${rows}\n\n## Top Punchlist (severity → difficulty)\n${punch}${appList}\n\n_Run ${report.run.date} · model ${report.run.model} · strict=${report.run.strict}_\n`;
 }
 
 export function writeReport(root: string, report: ReadinessReport, targetDir?: string): string {

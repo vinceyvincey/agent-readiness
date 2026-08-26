@@ -21,8 +21,8 @@ eq('all entries have valid level', CRITERIA_REGISTRY.every(c => c.level >= 1 && 
 const piMapped = getPiMappedCriteria();
 const agentOnly = getAgentOnlyCriteria();
 eq('pi-mapped + agent-only = 84', piMapped.length + agentOnly.length, 84);
-eq('agent-only count is 7', agentOnly.length, 7);
-eq('pi-mapped count is 77', piMapped.length, 77);
+eq('agent-only count is 3', agentOnly.length, 3);
+eq('pi-mapped count is 81', piMapped.length, 81);
 eq('agent-only has no piId', agentOnly.every(c => c.piId === null), true);
 eq('pi-mapped has piId', piMapped.every(c => c.piId !== null), true);
 
@@ -42,12 +42,22 @@ eq('codeowners maps to P4.4', getCriterionByDroidId('codeowners')?.piId, 'P4.4')
 eq('gitignore_comprehensive maps to P6.1', getCriterionByDroidId('gitignore_comprehensive')?.piId, 'P6.1');
 eq('env_template maps to P8.1', getCriterionByDroidId('env_template')?.piId, 'P8.1');
 
-// Agent-only criteria includes known ones
+// M16: Formerly agent-only criteria are now mapped
+eq('circuit_breakers maps to P7.15', getCriterionByDroidId('circuit_breakers')?.piId, 'P7.15');
+eq('pii_handling maps to P6.10', getCriterionByDroidId('pii_handling')?.piId, 'P6.10');
+eq('log_scrubbing maps to P7.16', getCriterionByDroidId('log_scrubbing')?.piId, 'P7.16');
+
+// Agent-only criteria includes known ones (4 remaining after M16)
 const agentOnlyIds = agentOnly.map(c => c.droidId);
-eq('circuit_breakers is agent-only', agentOnlyIds.includes('circuit_breakers'), true);
 eq('n_plus_one_detection is agent-only', agentOnlyIds.includes('n_plus_one_detection'), true);
 eq('interactive_qa_runnable is agent-only', agentOnlyIds.includes('interactive_qa_runnable'), true);
-eq('log_scrubbing is agent-only', agentOnlyIds.includes('log_scrubbing'), true);
+eq('devcontainer_runnable is agent-only', agentOnlyIds.includes('devcontainer_runnable'), true);
+// M16: unit_tests_runnable now mapped
+eq('unit_tests_runnable maps to P2.12', getCriterionByDroidId('unit_tests_runnable')?.piId, 'P2.12');
+eq('unit_tests_runnable is NOT agent-only', agentOnlyIds.includes('unit_tests_runnable'), false);
+eq('circuit_breakers is NOT agent-only', agentOnlyIds.includes('circuit_breakers'), false);
+eq('pii_handling is NOT agent-only', agentOnlyIds.includes('pii_handling'), false);
+eq('log_scrubbing is NOT agent-only', agentOnlyIds.includes('log_scrubbing'), false);
 
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);
