@@ -1,6 +1,6 @@
 # BASELINE.md - pre-implementation baseline (captured now, before we build)
 
-> Recorded at commit <before>: the current state we are validating against. Hypotheses in HYPOTHESES.md will be measured relative to this baseline so we can see directional change and avoid post-hoc biasi.
+> Recorded at commit <before>: the current state we are validating against. Hypotheses in HYPOTHESES.md will be measured relative to this baseline so we can see directional change and avoid post-hoc bias.
 
 ## Baseline date
 2026-02 (M0 end). Repo: this agent-readiness repo itself.
@@ -18,6 +18,6 @@
 
 ## Guardrails for this file
 - This is evidence, not marketing: stale/over-optimistic records are worse than none. Refresh timestamps at each milestone run; keep old rows.
-- Keep a running table: date, rubric_version, repo, score, level, key strikethroughs, closing evidence.
+- Keep a running table: date, rubric_version, repo, score, level, key changes, closing evidence.
 
-> Goal: a referee-can-eight continuous record so trends are honest and comparable.
+> Goal: an honest, refereeable continuous record so trends are honest and comparable.
