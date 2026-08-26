@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { appendHistory } from './history.ts';
 
-export const RUBRIC_VERSION = '0.3.0';
+export const RUBRIC_VERSION = '0.4.0';
 
 // Level gate map: each entry is the set of pillars that must each pass the 80% gate.
 export const LEVEL_GATES: Record<string, string[]> = {
@@ -146,32 +146,35 @@ export function runReadiness(root: string, opts: { weights?: Record<string, numb
   const level = resolveLevel(pillars);
 
   const actionById: Record<string, string> = {
-    'P0.1': 'Write a real README with substantive content (>200 chars, >=2 content lines).',
-    'P0.2': 'Add a run/usage/quickstart section to README.',
-    'P0.3': 'Add a docs/ directory or ARCHITECTURE.md.',
+    'P0.1': 'Write a real README with substantive content (>200 chars, >=2 content lines). Include a project overview, setup, usage, and verification sections.',
+    'P0.2': 'Add a run/usage/quickstart section to README with exact commands (e.g., `npm install`, `npm start`, `npm test`).',
+    'P0.3': 'Add a docs/ directory or ARCHITECTURE.md describing the module structure and data flow.',
     'P0.6': 'Add an H1 title to README.',
-    'P1.1': 'Create AGENTS.md with substantive setup + behavior rules (>=2 content lines).',
-    'P1.2': 'Add enforceable rules (must/always/never) AND verified commands (matching real scripts) to AGENTS.md.',
+    'P1.1': 'Create AGENTS.md with substantive setup + behavior rules (>=2 content lines). Include install, test, lint, and build commands.',
+    'P1.2': 'Add enforceable rules (must/always/never) AND verified backtick-quoted commands (matching real scripts in package.json/Makefile) to AGENTS.md.',
     'P1.4': 'Add MCP config (mcp.json) or CLAUDE.md for agent context.',
     'P1.6': 'Add lifecycle hooks (.factory/hooks.json or hooks in settings).',
     'P1.7': 'Add custom droids/subagents (.factory/droids or .pi/fabric/droids).',
     'P1.8': 'Add connector integrations (.factory/connectors.json).',
-    'P2.1': 'Add a test directory and at least one real test.',
-    'P2.2': 'Configure a test runner (jest/vitest/pytest).',
-    'P2.3': 'Add a run-test one-liner (npm test / make test).',
-    'P2.4': 'Configure a coverage threshold > 0 (not decorative).',
+    'P2.1': 'Add a test directory and at least one real test with assertions. Install the test runner as a devDependency and verify `npm test` exits 0.',
+    'P2.2': 'Configure a test runner (jest/vitest/pytest). Install it as a devDependency, create a config file, and add a `test` script to package.json.',
+    'P2.3': 'Add a run-test one-liner (`npm test` / `make test`). Verify the command actually runs and exits 0.',
+    'P2.4': 'Configure a coverage threshold > 0 (not decorative). Set `--coverage.threshold` in vitest config or `fail_under >= 50` in pyproject.toml.',
     'P2.6': 'Add a fast/smoke test path (test:fast script, vitest testPathIgnorePatterns, etc.).',
-    'P3.1': 'Commit a lockfile for reproducible builds.',
-    'P3.2': 'Document/add a build step.',
-    'P4.1': 'Add a CI workflow (.github/workflows).',
-    'P4.2': 'Add a real test invocation in CI (not just echo stubs).',
-    'P5.1': 'Configure a linter (eslint/biome/ruff/golangci).',
-    'P5.3': 'Configure a type checker (tsconfig/mypy/pyright/go vet/cargo).',
-    'P6.1': 'Harden .gitignore to cover .env, keys, caches (>=3 patterns).',
-    'P6.2': 'Remove committed secrets from tracked files.',
-    'P6.4': 'Wire a vulnerability scan (npm audit / pip-audit / gitleaks).',
-    'P8.1': 'Add .env.example listing required env vars.',
-    'P8.2': 'Add a one-command setup script.',
+    'P3.1': 'Commit a lockfile (package-lock.json / poetry.lock / go.sum) for reproducible builds. Run `npm install` or equivalent to generate it.',
+    'P3.2': 'Document/add a build step. Add a `build` script to package.json or a build target to Makefile. Verify it produces output.',
+    'P4.1': 'Add a CI workflow (.github/workflows/ci.yml) that runs on push and PR. Include checkout, install, test, and lint steps.',
+    'P4.2': 'Add a real test invocation in CI (not just echo stubs). The workflow should run `npm test` or equivalent and fail the build on test failure.',
+    'P4.6': 'Add issue templates (.github/ISSUE_TEMPLATE/) for bug reports and feature requests.',
+    'P4.7': 'Add a PR template (.github/PULL_REQUEST_TEMPLATE.md) with a checklist for reviewers.',
+    'P5.1': 'Configure a linter (eslint/biome/ruff/golangci). Install it as a devDependency, create a config file, add a `lint` script, and verify `npm run lint` exits 0.',
+    'P5.3': 'Configure a type checker (tsconfig.json with strict mode / mypy / go vet / cargo check). Verify it runs and exits 0.',
+    'P5.6': 'Enable strict typing: set `"strict": true` in tsconfig.json (or `strict = true` in mypy config). Verify the type checker catches violations.',
+    'P6.1': 'Harden .gitignore to cover .env, *.pem, *.key, node_modules/, dist/, and caches (>=3 patterns).',
+    'P6.2': 'Remove committed secrets from tracked files. Use `git rm --cached` and rotate any exposed credentials.',
+    'P6.4': 'Wire a vulnerability scan (npm audit / pip-audit / gitleaks). Add it to CI or as a pre-commit hook.',
+    'P8.1': 'Add .env.example listing required env vars with placeholder values.',
+    'P8.2': 'Add a one-command setup script (e.g., `npm run setup` or `make setup`) that installs deps and prepares the environment.',
   };
   const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };

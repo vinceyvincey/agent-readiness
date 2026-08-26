@@ -119,5 +119,59 @@ function write(d: string, rel: string, content: string) {
   eq('P6.3 fails when .env is tracked', c.pass, false);
 }
 
+// ---- M10: P5.6 strict TypeScript — tsconfig with strict:true passes ----
+{
+  const d = mkRepo();
+  write(d, 'tsconfig.json', `{ "compilerOptions": { "strict": true } }`);
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P5.6')!;
+  eq('P5.6 passes on strict tsconfig', c.pass, true);
+}
+
+// ---- M10: P5.6 strict TypeScript — tsconfig without strict fails ----
+{
+  const d = mkRepo();
+  write(d, 'tsconfig.json', `{ "compilerOptions": {} }`);
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P5.6')!;
+  eq('P5.6 fails on non-strict tsconfig', c.pass, false);
+}
+
+// ---- M10: P5.6 strict Python — pyproject with mypy strict passes ----
+{
+  const d = mkRepo();
+  write(d, 'pyproject.toml', `[tool.mypy]\nstrict = true\n`);
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P5.6')!;
+  eq('P5.6 passes on mypy strict', c.pass, true);
+}
+
+// ---- M10: P4.6 issue templates ----
+{
+  const d = mkRepo();
+  write(d, '.github/ISSUE_TEMPLATE/bug.md', '# Bug report\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P4.6')!;
+  eq('P4.6 passes on ISSUE_TEMPLATE dir', c.pass, true);
+}
+
+// ---- M10: P4.6 no issue templates ----
+{
+  const d = mkRepo();
+  write(d, 'README.md', '# Test\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P4.6')!;
+  eq('P4.6 fails without issue templates', c.pass, false);
+}
+
+// ---- M10: P4.7 PR template ----
+{
+  const d = mkRepo();
+  write(d, '.github/PULL_REQUEST_TEMPLATE.md', '## Checklist\n- [ ] Tests pass\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P4.7')!;
+  eq('P4.7 passes on PR template', c.pass, true);
+}
+
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);

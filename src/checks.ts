@@ -214,6 +214,8 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P4.3', pillar: 'P4', pass: has(r,'.pre-commit-config.yaml') || has(r,'.husky') || has(r,'.githooks') ||/husky|lint-staged/.test(read(r,'package.json'))||has(r,'lint-staged.config'), evidence: 'pre-commit hooks', severity: 'med', difficulty: 'basic' }),
     (r) => ({ id: 'P4.4', pillar: 'P4', pass: has(r,'CODEOWNERS','.github') || has(r,'CODEOWNERS'), evidence: 'ownership/rulesets', severity: 'med', difficulty: 'basic' }),
     (r) => ({ id: 'P4.5', pillar: 'P4', pass: /dependabot|renovate/i.test(read(r,'.github','dependabot.yml')) || has(r,'.github','dependabot.yml'), evidence: 'dep checker', severity: 'med', difficulty: 'intermediate' }),
+    (r) => ({ id: 'P4.6', pillar: 'P4', pass: has(r,'.github','ISSUE_TEMPLATE') || has(r,'.github','issue_template'), evidence: 'issue templates', severity: 'med', difficulty: 'basic' }),
+    (r) => ({ id: 'P4.7', pillar: 'P4', pass: has(r,'.github','PULL_REQUEST_TEMPLATE.md') || has(r,'.github','pull_request_template.md') || has(r,'.github','PULL_REQUEST_TEMPLATE') || has(r,'.github','pull_request_template'), evidence: 'PR templates', severity: 'low', difficulty: 'basic' }),
   ]}),
   () => ({ id: 'P5', scope: 'app', checks: [
     (r) => ({ id: 'P5.1', pillar: 'P5', pass: ['.eslintrc','.eslintrc.json','.eslintrc.js','biome.json','.flake8','.ruff.toml','golangci.yml','.golangci.yml','clippy.toml'].some(f=>has(r,f)) || /eslint|biome|ruff|golangci/i.test(read(r,'package.json')), evidence: 'linter', severity: 'high', difficulty: 'basic' }),
@@ -221,6 +223,8 @@ const C: Array<() => Pillar> = [
     (r) => ({ id: 'P5.3', pillar: 'P5', pass: has(r,'tsconfig.json')||/mypy|pyright|typecheck/i.test(read(r,'pyproject.toml')+read(r,'setup.cfg'))||has(r,'go.mod')||has(r,'Cargo.toml'), evidence: 'type check config', severity: 'med', difficulty: 'intermediate' }),
     (r) => ({ id: 'P5.4', pillar: 'P5', pass: (()=>{ const big=dirs(r).filter(d=>{ try{return fs.statSync(path.join(r.root,d)).isFile()&&fs.statSync(path.join(r.root,d)).size>500000;}catch{return false;} }).length; return big===0; })(), evidence: 'no mega-files', severity: 'low', difficulty: 'intermediate' }),
     (r) => ({ id: 'P5.5', pillar: 'P5', pass: has(r,'tsconfig.json')||has(r,'.editorconfig'), evidence: 'consistent config', severity: 'low', difficulty: 'basic' }),
+    // M10: strict typing — not just tsconfig existence, but strict mode enabled (presence ≠ signal).
+    (r) => { const tsconfig = read(r,'tsconfig.json'); const hasStrict = /"strict"\s*:\s*true/.test(tsconfig); const hasPyStrict = has(r,'pyproject.toml') && /strict\s*=\s*true|mypy.*strict|disallow_untyped/i.test(read(r,'pyproject.toml')); return { id: 'P5.6', pillar: 'P5', pass: hasStrict || hasPyStrict, evidence: hasStrict ? 'strict TypeScript enabled' : hasPyStrict ? 'strict Python typing enabled' : 'no strict typing config', severity: 'med', difficulty: 'intermediate' }; },
   ]}),
   () => ({ id: 'P6', scope: 'repo', checks: [
     (r) => { const gi = read(r, '.gitignore'); const patterns = gitignorePatternCount(gi); return { id: 'P6.1', pillar: 'P6', pass: /env|pem|node_modules|dist|agent-readiness/i.test(gi) && patterns >= 3, evidence: `.gitignore ${patterns} patterns`, severity: 'high', difficulty: 'intermediate' }; },

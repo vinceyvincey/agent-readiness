@@ -66,7 +66,14 @@ export function writeFixes(target: string, drafts: FixDraft[], apply = false): s
   return dir;
 }
 
-// M9: Build a grounded agentic remediation prompt from the report's punchlist.
+// M9→M10: Build a grounded agentic remediation prompt from the report's punchlist.
+// Synthesized from comparison with Factory Droid's /readiness-fix behavior:
+// - Behavioral verification (run the actual command, confirm exit 0)
+// - Negative testing (introduce a violation, confirm the tool catches it)
+// - Install real dependencies, not just config stubs
+// - Commit after each fix
+// - More specific, actionable remediation instructions
+// - Project context (language, existing structure)
 // This is the single source the extension and CLI both use to drive agent-driven fixes.
 export function agentPromptFor(report: ReadinessReport): string {
   const failed = report.findings.filter((c) => !c.pass);
@@ -77,34 +84,92 @@ export function agentPromptFor(report: ReadinessReport): string {
     (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1)
   );
 
-  const items = sorted.slice(0, 15).map((c) =>
-    `- [${c.severity}/${c.difficulty || 'intermediate'}] ${c.pillar} ${c.id}: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}`
-  ).join('\n');
+  // Focus on top 5 highest-leverage fixes (Droid's insight: one fix done thoroughly > many done superficially).
+  const topItems = sorted.slice(0, 5);
+  const remainingCount = sorted.length - topItems.length;
+
+  // Build detailed, actionable items using the engine's actionById descriptions.
+  const actionMap: Record<string, string> = {
+    'P0.1': 'Write a real README with project overview, setup, usage, and verification sections (>200 chars, >=2 content lines).',
+    'P0.2': 'Add a run/usage/quickstart section to README with exact commands.',
+    'P0.3': 'Add a docs/ directory or ARCHITECTURE.md describing module structure.',
+    'P0.6': 'Add an H1 title to README.',
+    'P1.1': 'Create AGENTS.md with install, test, lint, and build commands plus behavior rules.',
+    'P1.2': 'Add enforceable rules (must/always/never) AND backtick-quoted commands matching real scripts to AGENTS.md.',
+    'P1.4': 'Add MCP config (mcp.json) or CLAUDE.md for agent context.',
+    'P1.6': 'Add lifecycle hooks (.factory/hooks.json).',
+    'P1.7': 'Add custom droids/subagents (.factory/droids/).',
+    'P1.8': 'Add connector integrations (.factory/connectors.json).',
+    'P2.1': 'Add a test directory and at least one real test with assertions.',
+    'P2.2': 'Configure a test runner (jest/vitest/pytest): install as devDependency, create config, add `test` script.',
+    'P2.3': 'Add a run-test one-liner (`npm test` / `make test`).',
+    'P2.4': 'Configure a coverage threshold > 0 in vitest/jest/pytest config.',
+    'P2.6': 'Add a fast/smoke test path (test:fast script or vitest testPathIgnorePatterns).',
+    'P3.1': 'Commit a lockfile for reproducible builds. Run `npm install` to generate it.',
+    'P3.2': 'Add a build step (`build` script in package.json or Makefile target).',
+    'P3.4': 'Add a dependency manifest (package.json / pyproject.toml / go.mod / Cargo.toml) with declared dependencies.',
+    'P3.6': 'Separate dev/prod dependencies (devDependencies in package.json, requirements-dev.txt, or poetry dev group).',
+    'P4.1': 'Add a CI workflow (.github/workflows/ci.yml) with checkout, install, test, and lint steps.',
+    'P4.2': 'Add a real test invocation in CI (not echo stubs). The workflow must run tests and fail on failure.',
+    'P4.3': 'Add pre-commit hooks (husky + lint-staged or .pre-commit-config.yaml) to enforce lint/format on commit.',
+    'P4.4': 'Add a CODEOWNERS file (.github/CODEOWNERS) defining code ownership and review rules.',
+    'P4.5': 'Add dependency update automation (.github/dependabot.yml or Renovate config).',
+    'P4.6': 'Add issue templates (.github/ISSUE_TEMPLATE/) for bug reports and feature requests.',
+    'P4.7': 'Add a PR template (.github/PULL_REQUEST_TEMPLATE.md) with a reviewer checklist.',
+    'P5.1': 'Configure a linter: install eslint/biome/ruff as devDependency, create config, add `lint` script.',
+    'P5.2': 'Configure a formatter (Prettier / Black / gofmt). Install as devDependency and add a `format` script.',
+    'P5.3': 'Configure a type checker: create tsconfig.json with strict mode, or mypy/pyright config.',
+    'P5.6': 'Enable strict typing: set `"strict": true` in tsconfig.json or `strict = true` in mypy config.',
+    'P6.1': 'Harden .gitignore to cover .env, *.pem, *.key, node_modules/, dist/ (>=3 patterns).',
+    'P6.2': 'Remove committed secrets from tracked files. Use `git rm --cached` and rotate exposed credentials.',
+    'P6.4': 'Wire a vulnerability scan (npm audit / pip-audit / gitleaks) into CI or pre-commit.',
+    'P8.1': 'Add .env.example listing required env vars with placeholder values.',
+    'P8.2': 'Add a one-command setup script (`npm run setup` or `make setup`).',
+  };
+
+  const items = topItems.map((c) => {
+    const action = actionMap[c.id] || `Fix ${c.id}: ${c.evidence}`;
+    return `### ${c.pillar} ${c.id} [${c.severity}/${c.difficulty || 'intermediate'}]
+**Evidence**: ${c.evidence}${c.app ? ` (app: ${c.app})` : ''}
+**Fix**: ${action}`;
+  }).join('\n\n');
 
   const appInfo = Object.keys(report.apps).length > 1
-    ? `\n\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps).map(([p, a]) => `${p} (${a.name})`).join(', ')}. Apply app-scoped fixes to the correct app directory.`
-    : '';
+    ? `\nThis is a monorepo with ${Object.keys(report.apps).length} applications: ${Object.entries(report.apps).map(([p, a]) => `${p} (${a.name})`).join(', ')}. Apply app-scoped fixes to the correct app directory.\n`
+    : '\n';
+
+  const lang = report.repo.language;
+  const langContext = lang !== 'unknown' ? `Language: ${lang}. ` : '';
 
   return `You are remediating agent-readiness failures in a codebase.
 
 Current readiness: ${report.level} (${report.overall}/100), rubric ${report.rubric_version}.
+${langContext}Repo: ${report.repo.path}${appInfo}
 
-The following checks are failing, sorted by severity then difficulty (cheapest high-impact fixes first):
+## Strategy
+Focus on the ${topItems.length} highest-leverage fixes below (sorted by severity, then difficulty — cheapest high-impact first). For each one:
+1. Read the existing code and config to understand current conventions before writing anything.
+2. Create or modify the specific file(s) needed — **install real dependencies** (e.g., \`npm install -D vitest eslint\`), not just config stubs.
+3. **Verify the fix works**: run the actual command (e.g., \`npm test\`, \`npm run lint\`, \`tsc --noEmit\`) and confirm it exits 0.
+4. **Negative-test where possible**: introduce a deliberate violation (e.g., a type error, an unused variable), confirm the tool catches it, then remove the violation. This proves the fix is real, not decorative.
+5. **Commit after each successful fix** with a descriptive message (e.g., "Add strict TypeScript type checking setup").
+6. Only touch files directly relevant to the failing check — do not refactor unrelated code.
+${remainingCount > 0 ? `\nAfter these ${topItems.length} fixes, ${remainingCount} more failing checks remain. Re-run the readiness engine to see the updated punchlist.` : ''}
 
-${items}${appInfo}
+## Failing checks (top ${topItems.length})
 
-Instructions:
-1. Work through the failing checks from top to bottom (highest severity, easiest difficulty first).
-2. For each check, create or modify the specific file(s) needed to pass it. Use the evidence as a guide.
-3. Only touch files that are directly relevant to a failing check — do not refactor unrelated code.
-4. After applying fixes, re-run the readiness engine to verify the score improved:
-   node --experimental-strip-types src/cli.ts . --json
-5. If a mandatory gate (P2 testing or P6 security) would regress from your change, stop and report it.
-6. Prefer project-specific, real content over generic templates. Read existing code to match conventions.
-7. For AGENTS.md, include backtick-quoted commands that match the project's actual scripts.
+${items}
 
-Safety:
-- Default to dry-run: show proposed changes before applying.
+## Safety
 - Never commit secrets or remove existing tests.
-- If a fix requires domain knowledge you don't have, note it and skip to the next item.`;
+- If a mandatory gate (P2 testing or P6 security) would regress from your change, stop and report it.
+- If a fix requires domain knowledge you don't have, note it and skip to the next item.
+- Default to showing proposed changes before applying when not in an automated context.
+
+## Verification
+After applying fixes, re-run the readiness engine to confirm the score improved:
+\`\`\`
+node --experimental-strip-types src/cli.ts . --json
+\`\`\`
+Check that the specific check IDs you fixed now pass — not just that the overall score increased.`;
 }

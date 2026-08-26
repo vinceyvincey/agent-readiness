@@ -4,7 +4,7 @@ description: Assess a codebase's readiness for autonomous AI coding agents acros
 license: MIT
 compatibility: pi shell with git + standard language toolchains (node, python, go, rust, etc.)
 metadata:
-  rubric_version: 0.3.0
+  rubric_version: 0.4.0
   pillars: 10
   levels: L0-L5
 ---
@@ -43,7 +43,7 @@ For each pillar P0..P9:
 ## PHASE 3 - Score & resolve level
 - Overall = weighted mean of pillar scores (weights from agent-readiness.config.json, default equal).
 - Resolve level: enter L1..L5 via the 80% previous-level (N-1) gate on required pillars; Mandatory pillars P2 and P6 are hard gates (must pass to exceed L1).
-- Record `rubric_version` (0.3.0) and a config hash.
+- Record `rubric_version` (0.4.0) and a config hash.
 
 ## PHASE 4 - Recommendations
 - Bucket failed deterministic checks: HIGH (blocks next level / feedback loop), MEDIUM, LOW.
@@ -60,7 +60,7 @@ For each pillar P0..P9:
 JSON shape (stable, sorted keys):
 ```json
 {
-  "rubric_version": "0.3.0",
+  "rubric_version": "0.4.0",
   "config_hash": "",
   "repo": {"path": "", "git": "", "language": "", "project_type": ""},
   "pillars": {"P0": {"passed": 0, "total": 0, "pct": 0}, "...": {}},

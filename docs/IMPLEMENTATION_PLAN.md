@@ -97,6 +97,18 @@
 - [x] test/fix.test.ts: 13 assertions (prompt content, monorepo awareness, static draft no regression).
 - Verify: all 6 test suites pass; E1 harness all pass.
 
+## M10 - Droid comparison + synthesized optimal prompts - DONE
+- [x] Experiment: ran Factory Droid's `/readiness-report` and `/readiness-fix` on 3 calibrated test repos (low/med/high) in /tmp.
+- [x] Captured Droid output: Level 1 for all repos, ~62-68 criteria, behavioral verification (ran `npm test`, found vitest missing), context-aware skipping, one-fix-done-thoroughly remediation with negative testing.
+- [x] Captured pi output: L0/L0/L2, 50 checks, presence-based only, 15-item punchlist prompt.
+- [x] docs/COMPARISON.md: full side-by-side analysis across 7 dimensions (pillars, criteria, scoring, levels, remediation, monorepo, difficulty).
+- [x] Rewrote agentPromptFor() in fix.ts: behavioral verification, negative testing, dependency installation, commit-after-each-fix, top-5 focus, project context, more specific action descriptions.
+- [x] New checks (presence → signal): P5.6 strict TypeScript (`"strict": true`), P4.6 issue templates, P4.7 PR templates.
+- [x] Updated actionById in engine.ts with Droid-inspired detailed remediation instructions.
+- [x] Rubric bumped to 0.4.0; SKILL.md updated.
+- [x] test/fix.test.ts: 19 assertions (6 new for M10 prompt features). test/checks.test.ts: 15 assertions (6 new for M10 checks).
+- Verify: all 6 test suites pass (87 total assertions); E1 harness all pass; H1 gap=68.
+
 ## Cross-cutting acceptance criteria
 - No third-party runtime for the skill-only path (pi can run shell builtins).
 - Every deterministic check documented: file glob + evidence rule + pass/fail.

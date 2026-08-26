@@ -29,13 +29,27 @@ function write(d: string, rel: string, content: string) {
   const r = runReadiness(d);
   const prompt = agentPromptFor(r);
   const highFails = r.findings.filter((f) => !f.pass && f.severity === 'high');
-  // Every high-severity failing check ID should appear in the prompt.
-  for (const f of highFails.slice(0, 5)) {
+  // M10: prompt now focuses on top 5 (sorted by severity then difficulty).
+  // Verify that the top-5 sorted failing checks appear in the prompt.
+  const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
+  const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
+  const sorted = highFails.sort((a, b) =>
+    (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
+    (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1)
+  );
+  for (const f of sorted.slice(0, 5)) {
     eq(`prompt contains ${f.id}`, prompt.includes(f.id), true);
   }
-  // Prompt includes safety instructions.
-  eq('prompt has safety section', prompt.includes('Safety:'), true);
+  // Prompt includes safety instructions (M10: now markdown header format).
+  eq('prompt has safety section', prompt.includes('## Safety'), true);
   eq('prompt has re-run instruction', prompt.includes('re-run the readiness engine'), true);
+  // M10: prompt includes behavioral verification and negative testing instructions.
+  eq('prompt has behavioral verification', prompt.includes('Verify the fix works'), true);
+  eq('prompt has negative testing', prompt.includes('Negative-test'), true);
+  eq('prompt has commit instruction', prompt.includes('Commit after each'), true);
+  eq('prompt has install deps instruction', prompt.includes('install real dependencies'), true);
+  eq('prompt has strategy section', prompt.includes('## Strategy'), true);
+  eq('prompt has top-5 focus', prompt.includes('highest-leverage'), true);
 }
 
 // ---- agentPromptFor: monorepo awareness ----
