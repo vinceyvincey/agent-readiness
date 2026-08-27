@@ -29,7 +29,11 @@ const mk = (over: Record<string, number> = {}) => {
 
 eq('all-pass L5', resolveLevel(mk()), 'L5');
 eq('P2 fail -> L0', resolveLevel(mk({ P2: 50 })), 'L0');
-eq('P6 fail mandatory -> L0', resolveLevel(mk({ P6: 40 })), 'L0');
+// L1 is the entry-level floor and is exempt from mandatory (P2/P6) gates.
+// P6 below 80% blocks L2+ (which require mandatory) but L1 still passes.
+eq('P6 fail mandatory -> L1 (L1 exempt)', resolveLevel(mk({ P6: 40 })), 'L1');
+eq('P2 50 + P6 40 -> L0 (P2 is in L1 gates)', resolveLevel(mk({ P2: 50, P6: 40 })), 'L0');
+eq('P0/P2/P3 pass, P6 fail, P4 fail -> L1', resolveLevel(mk({ P4: 30, P6: 40 })), 'L1');
 eq('L2 ok, L4/L5 low -> L2', resolveLevel(mk({ P4: 30 })), 'L2');
 eq('P6 85 mandatory ok -> L5', resolveLevel(mk({ P6: 85 })), 'L5');
 eq('P0 79 -> L0', resolveLevel(mk({ P0: 79 })), 'L0');

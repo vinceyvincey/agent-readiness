@@ -128,12 +128,59 @@ process.exit(1);
       });
     }
 
-    // P3.2: Build — verify build runs
+    // P3.2: Build — verify build runs AND produces output (not just noEmit typecheck)
     if (passingIds.has('P3.2') && scripts.build && nodeModulesExists) {
+      // Custom script: checks for noEmit in tsconfig, runs build, then checks for output
+      const buildVerifyScript = `
+const {execSync} = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const root = ${JSON.stringify(root)};
+// Check if tsconfig has noEmit: true (build is effectively a typecheck)
+try {
+  const tsconfig = JSON.parse(fs.readFileSync(path.join(root, 'tsconfig.json'), 'utf8'));
+  const noEmit = tsconfig.compilerOptions?.noEmit === true ||
+    (tsconfig.extends && false); // extends might set it, but we only check direct
+  if (noEmit) {
+    console.error('build uses noEmit: true (no output produced)');
+    process.exit(1);
+  }
+} catch {}
+// Record dist/ state before build
+const distPath = path.join(root, 'dist');
+const buildPath = path.join(root, 'build');
+const libPath = path.join(root, 'lib');
+const beforeDist = fs.existsSync(distPath) ? fs.statSync(distPath).mtimeMs : 0;
+const beforeBuild = fs.existsSync(buildPath) ? fs.statSync(buildPath).mtimeMs : 0;
+// Run the build
+try {
+  execSync('npm run build', {cwd: root, stdio: 'pipe', timeout: 55000});
+} catch (e) {
+  console.error('build failed: ' + (e.message || 'unknown'));
+  process.exit(1);
+}
+// Check if output was produced or updated
+const afterDist = fs.existsSync(distPath) ? fs.statSync(distPath).mtimeMs : 0;
+const afterBuild = fs.existsSync(buildPath) ? fs.statSync(buildPath).mtimeMs : 0;
+const afterLib = fs.existsSync(libPath);
+if (afterDist > beforeDist || afterBuild > beforeBuild || afterLib) {
+  process.exit(0); // output produced
+}
+// Check for tsconfig outDir
+try {
+  const tsconfig = JSON.parse(fs.readFileSync(path.join(root, 'tsconfig.json'), 'utf8'));
+  const outDir = tsconfig.compilerOptions?.outDir;
+  if (outDir && fs.existsSync(path.join(root, outDir))) {
+    process.exit(0); // outDir exists
+  }
+} catch {}
+console.error('build exited 0 but produced no output (no dist/, build/, lib/, or outDir)');
+process.exit(1);
+`;
       verifications.push({
         checkId: 'P3.2',
-        description: 'Verify build runs',
-        command: ['npm', 'run', 'build'],
+        description: 'Verify build runs and produces output',
+        command: ['node', '-e', buildVerifyScript],
         timeoutMs: 60000,
       });
     }
@@ -167,6 +214,51 @@ process.exit(1);
           timeoutMs: 30000,
         });
       }
+    }
+
+    // P2.4: Coverage — verify the coverage tool is actually installed and runnable.
+    // Don't require node_modules — the whole point is to catch missing tools.
+    if (passingIds.has('P2.4')) {
+      const hasNycrc = fs.existsSync(path.join(root, '.nycrc')) || fs.existsSync(path.join(root, '.nycrc.json'));
+      // If nyc is referenced (in deps or config), verify it's available
+      if (deps.nyc || hasNycrc) {
+        verifications.push({
+          checkId: 'P2.4',
+          description: 'Verify nyc/coverage tool is available',
+          command: ['npx', 'nyc', '--version'],
+          timeoutMs: 15000,
+        });
+      } else if (deps.c8) {
+        verifications.push({
+          checkId: 'P2.4',
+          description: 'Verify c8 coverage tool is available',
+          command: ['npx', 'c8', '--version'],
+          timeoutMs: 15000,
+        });
+      } else if (scripts['test:coverage'] || scripts['test:cov'] || scripts['coverage']) {
+        // Generic coverage script — verify it runs (may run tests, so give it time)
+        const covScriptName = scripts['test:coverage']
+          ? 'test:coverage'
+          : scripts['test:cov']
+            ? 'test:cov'
+            : 'coverage';
+        verifications.push({
+          checkId: 'P2.4',
+          description: 'Verify coverage script runs',
+          command: ['npm', 'run', covScriptName, '--', '--help'],
+          timeoutMs: 30000,
+        });
+      }
+    }
+
+    // P5.9: Duplicate code detection — verify jscpd runs (if in deps)
+    if (passingIds.has('P5.9') && deps.jscpd && nodeModulesExists) {
+      verifications.push({
+        checkId: 'P5.9',
+        description: 'Verify jscpd runs',
+        command: ['npx', 'jscpd', '--version'],
+        timeoutMs: 15000,
+      });
     }
 
     // P4.1: CI workflow — validate YAML structure (has jobs: with runs-on: and run: steps)

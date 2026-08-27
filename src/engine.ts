@@ -28,11 +28,14 @@ export const GATE_PCT = 0.8;
 export function resolveLevel(pillars: Record<string, PillarScore>): string {
   // Gates are cumulative supersets, so walk from the highest level down and
   // return the highest whose required pillars all meet the gate (plus mandatory).
+  // Mandatory gates (P2/P6 at 80%) apply to L2+; L1 is the floor and only
+  // requires its own pillars (P0, P2, P3) without the mandatory overlay.
   const orders = ['L5', 'L4', 'L3', 'L2', 'L1'];
   for (const lvl of orders) {
     const req = LEVEL_GATES[lvl];
     const meets = req.every((pill) => (pillars[pill]?.pct ?? 0) >= GATE_PCT * 100);
-    const mandatoryOk = MANDATORY.every((m) => (pillars[m]?.pct ?? 0) >= GATE_PCT * 100);
+    // Mandatory gates only apply to L2 and above (L1 is the entry-level floor).
+    const mandatoryOk = lvl === 'L1' || MANDATORY.every((m) => (pillars[m]?.pct ?? 0) >= GATE_PCT * 100);
     if (meets && mandatoryOk) return lvl;
   }
   return 'L0';

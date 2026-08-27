@@ -81,6 +81,93 @@ function toolOnPath(name: string): boolean {
   }
 }
 
+// Check if any of the named tools are in package.json devDependencies or on PATH.
+// Used to verify that a config file corresponds to an actually-installed tool.
+function toolInDepsOrPath(r: Repo, toolNames: string[]): boolean {
+  const pkg = read(r, 'package.json');
+  const pyproject = read(r, 'pyproject.toml');
+  const reqs = read(r, 'requirements.txt');
+  const reqsDev = read(r, 'requirements-dev.txt');
+  const allText = pkg + pyproject + reqs + reqsDev;
+  for (const name of toolNames) {
+    if (new RegExp(`"${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'i').test(allText)) return true;
+    if (toolOnPath(name)) return true;
+  }
+  return false;
+}
+
+// Detect whether the repo is a web service (has an HTTP framework or server entry point).
+// Used to determine if DAST and other web-only checks are applicable.
+function isWebService(r: Repo): boolean {
+  const pkg = read(r, 'package.json');
+  const pyproject = read(r, 'pyproject.toml');
+  const reqs = read(r, 'requirements.txt');
+  const goMod = read(r, 'go.mod');
+  const cargo = read(r, 'Cargo.toml');
+  const deps = pkg + pyproject + reqs + goMod + cargo;
+  // Common web frameworks / HTTP servers
+  const webFrameworks =
+    /\b(express|fastify|koa|hapi|next|nuxt|remix|astro|sveltekit|nestjs|@nestjs|axios|got|superagent)\b/i;
+  const pyWeb = /\b(django|flask|fastapi|tornado|aiohttp|starlette|uvicorn|gunicorn)\b/i;
+  const goWeb = /\b(net\/http|gin|echo|fiber|chi|gorilla)\b/i;
+  const rustWeb = /\b(actix|axum|warp|rocket|tower)\b/i;
+  // Also check for server entry points
+  const serverFiles =
+    has(r, 'src', 'server.ts') ||
+    has(r, 'src', 'server.js') ||
+    has(r, 'src', 'app.ts') ||
+    has(r, 'src', 'app.js') ||
+    has(r, 'main.go');
+  // Check for Dockerfile with EXPOSE (indicates a service)
+  const dockerfile = read(r, 'Dockerfile');
+  const hasExpose = /EXPOSE/i.test(dockerfile);
+  return webFrameworks.test(deps) || pyWeb.test(deps) || goWeb.test(deps) || rustWeb.test(deps) || hasExpose;
+}
+
+// Check if a logging module in src/logging/ or src/logger/ is actually imported
+// by at least one non-test production source file.
+function loggerImportedByProduction(r: Repo): boolean {
+  const loggingDirs = ['src/logging', 'src/logger'];
+  const hasLoggingDir = loggingDirs.some((d) => has(r, ...d.split('/')));
+  if (!hasLoggingDir) return false; // no logging module dir to check
+  // Scan production source files for imports of the logging module
+  const sourceFiles = readDirRecursive(r, 'src').filter(
+    (f) => !/\.test\./.test(f) && !/\.spec\./.test(f) && !/\.test\./.test(f),
+  );
+  for (const f of sourceFiles) {
+    const content = readRel(r, 'src/' + f);
+    // Check for import/require of logging module
+    if (
+      /(?:import|require|from)\s+['"][^'"]*(?:logging|logger)['"]/i.test(content) ||
+      /(?:import|require|from)\s+['"]\.\.\/(?:logging|logger)/i.test(content) ||
+      /(?:import|require|from)\s+['"]\.\/(?:logging|logger)/i.test(content)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Check if git hooks are actually activated (not just present on disk).
+function gitHooksActivated(r: Repo): boolean {
+  // Husky activation: .husky/_/ directory exists (husky v9+)
+  if (has(r, '.husky', '_')) return true;
+  // Husky v8: .husky/.gitignore exists and husky is in deps
+  if (has(r, '.husky', 'pre-commit') && /husky/i.test(read(r, 'package.json'))) return true;
+  // pre-commit framework: .pre-commit-config.yaml exists and pre-commit is on PATH
+  if (has(r, '.pre-commit-config.yaml') && toolOnPath('pre-commit')) return true;
+  // Git core.hooksPath is set
+  try {
+    const res = spawnSync('git', ['config', 'core.hooksPath'], { cwd: r.root, encoding: 'utf8', timeout: 3000 });
+    if (res.status === 0 && res.stdout.trim().length > 0) return true;
+  } catch {
+    /* not git */
+  }
+  // lint-staged in deps (usually combined with husky, but also validates on its own)
+  if (/lint-staged/i.test(read(r, 'package.json')) && has(r, '.husky')) return true;
+  return false;
+}
+
 // Check if gh CLI is authenticated (returns org/repo slug or empty string).
 function ghRepoSlug(r: Repo): string {
   try {
@@ -204,6 +291,34 @@ function extractCommands(text: string): string[] {
   return cmds;
 }
 
+// Built-in npm commands that don't require a package script entry.
+const NPM_BUILTIN = new Set([
+  'ci',
+  'install',
+  'i',
+  'audit',
+  'publish',
+  'pack',
+  'ls',
+  'list',
+  'outdated',
+  'dedupe',
+  'prune',
+  'init',
+  'link',
+  'ln',
+  'fund',
+  'whoami',
+  'view',
+  'explain',
+  'version',
+  'run',
+  'exec',
+  'create',
+  'search',
+  'stars',
+]);
+
 // Check if any extracted command maps to a real script key, Makefile target, or pyproject entry.
 function commandsMatchRealScript(r: Repo, commands: string[]): boolean {
   const pkg = read(r, 'package.json');
@@ -225,7 +340,12 @@ function commandsMatchRealScript(r: Repo, commands: string[]): boolean {
   for (const cmd of commands) {
     // `npm test` / `npm run lint` → script key "test" / "lint"
     const npmRun = cmd.match(/npm\s+(?:run\s+)?(\S+)/);
-    if (npmRun && scriptKeys.includes(npmRun[1])) return true;
+    if (npmRun) {
+      // Built-in npm commands (ci, install, audit, etc.) are always valid.
+      if (NPM_BUILTIN.has(npmRun[1])) return true;
+      // Otherwise, check if it's a real script key.
+      if (scriptKeys.includes(npmRun[1])) return true;
+    }
     // `make test` → Makefile target "test"
     const makeMatch = cmd.match(/make\s+(\S+)/);
     if (makeMatch && makeTargets.includes(makeMatch[1])) return true;
@@ -446,19 +566,30 @@ const C: Array<() => Pillar> = [
         }
       },
       // M11: automated_doc_generation — typedoc/jsdoc/sphinx config.
-      (r) => ({
-        id: 'P0.8',
-        pillar: 'P0',
-        pass:
-          has(r, 'typedoc.json') ||
-          has(r, 'typedoc.config.js') ||
-          /typedoc|jsdoc|sphinx|mkdocs|docusaurus/i.test(
-            read(r, 'package.json') + read(r, 'pyproject.toml') + read(r, '.github', 'workflows', 'ci.yml'),
-          ),
-        evidence: 'automated doc generation config',
-        severity: 'low',
-        difficulty: 'intermediate',
-      }),
+      // Verify tool is in deps or on PATH when a config file is the only evidence.
+      (r) => {
+        const hasConfig = has(r, 'typedoc.json') || has(r, 'typedoc.config.js');
+        const hasDep = /typedoc|jsdoc|sphinx|mkdocs|docusaurus/i.test(
+          read(r, 'package.json') + read(r, 'pyproject.toml'),
+        );
+        const hasInCI = /typedoc|jsdoc|sphinx|mkdocs|docusaurus/i.test(readWorkflows(r));
+        const toolInstalled = toolInDepsOrPath(r, ['typedoc', 'jsdoc', 'sphinx-build', 'mkdocs', 'docusaurus']);
+        const pass = hasDep || hasInCI || (hasConfig && toolInstalled);
+        return {
+          id: 'P0.8',
+          pillar: 'P0',
+          pass,
+          evidence: pass
+            ? hasDep || hasInCI
+              ? 'automated doc generation in deps or CI'
+              : 'doc generation tool installed + config present'
+            : hasConfig
+              ? 'doc generation config exists but tool not installed'
+              : 'no automated doc generation',
+          severity: 'low',
+          difficulty: 'intermediate',
+        };
+      },
       // M11: api_schema_docs — OpenAPI/Swagger/GraphQL schema files.
       (r) => ({
         id: 'P0.9',
@@ -535,14 +666,65 @@ const C: Array<() => Pillar> = [
         severity: 'med',
         difficulty: 'basic',
       }),
-      (r) => ({
-        id: 'P1.4',
-        pillar: 'P1',
-        pass: has(r, 'mcp.json') || has(r, '.mcp.json') || has(r, 'CLAUDE.md'),
-        evidence: 'agent config/MCP',
-        severity: 'med',
-        difficulty: 'basic',
-      }),
+      (r) => {
+        // P1.4: Validate MCP config content (not just file presence).
+        // Also accept skills directories with actual SKILL.md files.
+        let pass = false;
+        let evidence = 'agent config/MCP';
+        // Check CLAUDE.md (simple presence is fine — it's freeform agent context)
+        if (has(r, 'CLAUDE.md')) {
+          pass = true;
+          evidence = 'CLAUDE.md agent context';
+        }
+        // Check mcp.json — validate it has MCP server structure
+        if (!pass) {
+          for (const f of ['mcp.json', '.mcp.json']) {
+            if (has(r, f)) {
+              try {
+                const cfg = JSON.parse(read(r, f));
+                // Valid MCP config has mcpServers key (or is an array of server configs)
+                if (cfg && (cfg.mcpServers || Array.isArray(cfg))) {
+                  pass = true;
+                  evidence = `${f} with valid MCP server config`;
+                } else {
+                  evidence = `${f} exists but lacks mcpServers (not a valid MCP config)`;
+                }
+              } catch {
+                evidence = `${f} exists but is not valid JSON`;
+              }
+              break;
+            }
+          }
+        }
+        // Check skills directories with actual SKILL.md files
+        if (!pass) {
+          const skillDirs = ['.factory/skills', 'skills', '.claude/skills', '.skills'];
+          for (const sd of skillDirs) {
+            const dirPath = path.join(r.root, ...sd.split('/'));
+            try {
+              const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+              const hasSkillMd = entries.some(
+                (e) => e.isDirectory() && fs.existsSync(path.join(dirPath, e.name, 'SKILL.md')),
+              );
+              if (hasSkillMd) {
+                pass = true;
+                evidence = `skill found in ${sd}/`;
+                break;
+              }
+            } catch {
+              /* dir not found */
+            }
+          }
+        }
+        return {
+          id: 'P1.4',
+          pillar: 'P1',
+          pass,
+          evidence,
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       (r) => ({
         id: 'P1.5',
         pillar: 'P1',
@@ -551,17 +733,66 @@ const C: Array<() => Pillar> = [
         severity: 'low',
         difficulty: 'basic',
       }),
-      (r) => ({
-        id: 'P1.6',
-        pillar: 'P1',
-        pass:
-          has(r, '.factory', 'hooks.json') ||
-          (has(r, '.factory', 'settings.json') && /hooks/.test(read(r, '.factory', 'settings.json'))) ||
-          (has(r, '.pi', 'settings.json') && /hooks/.test(read(r, '.pi', 'settings.json'))),
-        evidence: 'droid/pi lifecycle hooks',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+      (r) => {
+        // P1.6: Validate lifecycle hook config is structurally valid, not just present.
+        let pass = false;
+        let evidence = 'droid/pi lifecycle hooks';
+        // .factory/hooks.json — validate it's JSON with hook entries
+        if (has(r, '.factory', 'hooks.json')) {
+          try {
+            const cfg = JSON.parse(read(r, '.factory', 'hooks.json'));
+            if (cfg && typeof cfg === 'object' && Object.keys(cfg).length > 0) {
+              pass = true;
+              evidence = '.factory/hooks.json with valid hook entries';
+            } else {
+              evidence = '.factory/hooks.json exists but is empty or invalid';
+            }
+          } catch {
+            evidence = '.factory/hooks.json exists but is not valid JSON';
+          }
+        }
+        // .factory/settings.json with hooks key — validate hooks field has content
+        if (!pass && has(r, '.factory', 'settings.json')) {
+          try {
+            const cfg = JSON.parse(read(r, '.factory', 'settings.json'));
+            if (cfg?.hooks && typeof cfg.hooks === 'object' && Object.keys(cfg.hooks).length > 0) {
+              pass = true;
+              evidence = '.factory/settings.json with hooks config';
+            }
+          } catch {
+            /* not json */
+          }
+        }
+        // .pi/settings.json — validate hooks use recognized Pi schema fields.
+        // Recognized hook types: preTool, postTool, preEdit, postEdit, preCommit, postCommit, etc.
+        if (!pass && has(r, '.pi', 'settings.json')) {
+          try {
+            const cfg = JSON.parse(read(r, '.pi', 'settings.json'));
+            // Pi settings hooks should be an object with recognized lifecycle event keys
+            if (cfg?.hooks && typeof cfg.hooks === 'object' && Object.keys(cfg.hooks).length > 0) {
+              // Check for at least one recognized hook lifecycle key
+              const recognizedHooks = /^(pre|post)(Tool|Edit|Command|Commit|Merge|Push|Session)/i;
+              const hasRecognized = Object.keys(cfg.hooks).some((k) => recognizedHooks.test(k));
+              if (hasRecognized) {
+                pass = true;
+                evidence = '.pi/settings.json with recognized lifecycle hooks';
+              } else {
+                evidence = '.pi/settings.json has hooks but no recognized lifecycle event keys';
+              }
+            }
+          } catch {
+            /* not json */
+          }
+        }
+        return {
+          id: 'P1.6',
+          pillar: 'P1',
+          pass,
+          evidence,
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       (r) => ({
         id: 'P1.7',
         pillar: 'P1',
@@ -982,19 +1213,36 @@ const C: Array<() => Pillar> = [
           difficulty: 'advanced',
         };
       },
-      (r) => ({
-        id: 'P4.3',
-        pillar: 'P4',
-        pass:
+      (r) => {
+        // P4.3: Verify pre-commit hooks are actually activated, not just present on disk.
+        const hasHookFiles =
           has(r, '.pre-commit-config.yaml') ||
           has(r, '.husky') ||
           has(r, '.githooks') ||
           /husky|lint-staged/.test(read(r, 'package.json')) ||
-          has(r, 'lint-staged.config'),
-        evidence: 'pre-commit hooks',
-        severity: 'med',
-        difficulty: 'basic',
-      }),
+          has(r, 'lint-staged.config');
+        if (!hasHookFiles) {
+          return {
+            id: 'P4.3',
+            pillar: 'P4',
+            pass: false,
+            evidence: 'no pre-commit hooks found',
+            severity: 'med',
+            difficulty: 'intermediate',
+          };
+        }
+        const activated = gitHooksActivated(r);
+        return {
+          id: 'P4.3',
+          pillar: 'P4',
+          pass: activated,
+          evidence: activated
+            ? 'pre-commit hooks found and activated'
+            : 'hook files exist but not activated (core.hooksPath unset, no .husky/_/, pre-commit not on PATH)',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       (r) => ({
         id: 'P4.4',
         pillar: 'P4',
@@ -1046,20 +1294,34 @@ const C: Array<() => Pillar> = [
         difficulty: 'basic',
       }),
       // M11: release_automation — CD workflow or semantic-release config.
-      (r) => ({
-        id: 'P4.9',
-        pillar: 'P4',
-        pass:
-          has(r, '.github', 'workflows', 'release.yml') ||
-          has(r, '.github', 'workflows', 'deploy.yml') ||
-          has(r, '.releaserc.json') ||
-          has(r, '.releaserc') ||
-          has(r, 'release.config.js') ||
-          /semantic-release|changesets|release-please/i.test(read(r, 'package.json')),
-        evidence: 'release automation config',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+      // Verify tool is in deps when a config file is the only evidence (not just a CI workflow).
+      (r) => {
+        const hasWorkflow =
+          has(r, '.github', 'workflows', 'release.yml') || has(r, '.github', 'workflows', 'deploy.yml');
+        const hasConfig = has(r, '.releaserc.json') || has(r, '.releaserc') || has(r, 'release.config.js');
+        const hasDep = /semantic-release|changesets|release-please/i.test(read(r, 'package.json'));
+        const hasChangesetDir = has(r, '.changeset') || has(r, '.changesets');
+        const toolInstalled = toolInDepsOrPath(r, ['semantic-release', 'changeset']);
+        // Pass if: CI workflow exists (workflow is sufficient evidence), OR tool is in deps, OR
+        // config file exists AND tool is installed, OR changesets directory exists
+        const pass = hasWorkflow || hasDep || (hasConfig && toolInstalled) || hasChangesetDir;
+        return {
+          id: 'P4.9',
+          pillar: 'P4',
+          pass,
+          evidence: pass
+            ? hasWorkflow
+              ? 'release/deploy workflow in CI'
+              : hasDep
+                ? 'release automation tool in dependencies'
+                : 'release automation config + tool installed'
+            : hasConfig
+              ? 'release config file exists but tool not installed'
+              : 'no release automation',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       // M14: fast_ci_feedback — gh-CLI: CI duration under 10 min.
       (r) => {
         if (!ghAvailable()) return skip('P4.10', 'P4', 'gh not authenticated');
@@ -1150,22 +1412,37 @@ const C: Array<() => Pillar> = [
         difficulty: 'intermediate',
       }),
       // M14: release_notes_automation — semantic-release/changesets/standard-version.
-      (r) => ({
-        id: 'P4.15',
-        pillar: 'P4',
-        pass:
-          has(r, '.releaserc.json') ||
-          has(r, '.releaserc') ||
-          has(r, 'release.config.js') ||
-          has(r, '.changeset') ||
-          has(r, '.changesets') ||
-          /semantic-release|changesets|standard-version|release-please|conventional.?changelog/i.test(
-            read(r, 'package.json'),
-          ),
-        evidence: 'release notes automation',
-        severity: 'low',
-        difficulty: 'intermediate',
-      }),
+      // Verify tool is in deps when a config file is the only evidence (changesets dir is sufficient).
+      (r) => {
+        const hasConfig = has(r, '.releaserc.json') || has(r, '.releaserc') || has(r, 'release.config.js');
+        const hasChangesetDir = has(r, '.changeset') || has(r, '.changesets');
+        const hasDep = /semantic-release|changesets|standard-version|release-please|conventional.?changelog/i.test(
+          read(r, 'package.json'),
+        );
+        const toolInstalled = toolInDepsOrPath(r, [
+          'semantic-release',
+          'changeset',
+          'standard-version',
+          'release-please',
+        ]);
+        const pass = hasChangesetDir || hasDep || (hasConfig && toolInstalled);
+        return {
+          id: 'P4.15',
+          pillar: 'P4',
+          pass,
+          evidence: pass
+            ? hasDep
+              ? 'release notes tool in dependencies'
+              : hasChangesetDir
+                ? 'changesets directory present'
+                : 'release notes config + tool installed'
+            : hasConfig
+              ? 'release notes config exists but tool not installed'
+              : 'no release notes automation',
+          severity: 'low',
+          difficulty: 'intermediate',
+        };
+      },
       // M14: progressive_rollout — canary/percentage rollout configs.
       (r) => ({
         id: 'P4.16',
@@ -1301,31 +1578,49 @@ const C: Array<() => Pillar> = [
         difficulty: 'intermediate',
       }),
       // M11: dead_code_detection — knip/vulture/staticcheck config.
-      (r) => ({
-        id: 'P5.8',
-        pillar: 'P5',
-        pass:
-          has(r, 'knip.json') ||
-          has(r, 'knip.ts') ||
-          has(r, '.knip.json') ||
-          has(r, '.vulture') ||
-          /knip|vulture|unimported|dead/i.test(read(r, 'package.json') + read(r, 'pyproject.toml')),
-        evidence: 'dead code detection tooling',
-        severity: 'low',
-        difficulty: 'intermediate',
-      }),
+      // Verify tool is in deps or on PATH when a config file is the only evidence.
+      (r) => {
+        const hasConfig = has(r, 'knip.json') || has(r, 'knip.ts') || has(r, '.knip.json') || has(r, '.vulture');
+        const hasDep = /knip|vulture|unimported/i.test(read(r, 'package.json') + read(r, 'pyproject.toml'));
+        const toolInstalled = toolInDepsOrPath(r, ['knip', 'vulture', 'unimported']);
+        const pass = hasDep || (hasConfig && toolInstalled) || toolInstalled;
+        return {
+          id: 'P5.8',
+          pillar: 'P5',
+          pass,
+          evidence: pass
+            ? hasDep
+              ? 'dead code tool in dependencies'
+              : 'dead code tool installed + config present'
+            : hasConfig
+              ? 'dead code config file exists but tool not installed (not in deps or PATH)'
+              : 'no dead code detection tooling',
+          severity: 'low',
+          difficulty: 'intermediate',
+        };
+      },
       // M11: duplicate_code_detection — jscpd/CPD config.
-      (r) => ({
-        id: 'P5.9',
-        pillar: 'P5',
-        pass:
-          has(r, '.jscpd.json') ||
-          has(r, 'jscpd.json') ||
-          /jscpd|cpd|duplicate/i.test(read(r, 'package.json') + read(r, 'pyproject.toml')),
-        evidence: 'duplicate code detection tooling',
-        severity: 'low',
-        difficulty: 'intermediate',
-      }),
+      // Verify tool is in deps or on PATH when a config file is the only evidence.
+      (r) => {
+        const hasConfig = has(r, '.jscpd.json') || has(r, 'jscpd.json');
+        const hasDep = /jscpd/i.test(read(r, 'package.json') + read(r, 'pyproject.toml'));
+        const toolInstalled = toolInDepsOrPath(r, ['jscpd']);
+        const pass = hasDep || (hasConfig && toolInstalled) || toolInstalled;
+        return {
+          id: 'P5.9',
+          pillar: 'P5',
+          pass,
+          evidence: pass
+            ? hasDep
+              ? 'jscpd in dependencies'
+              : 'jscpd installed + config present'
+            : hasConfig
+              ? 'jscpd config file exists but tool not installed (not in deps or PATH)'
+              : 'no duplicate code detection tooling',
+          severity: 'low',
+          difficulty: 'intermediate',
+        };
+      },
       // M11: cyclomatic_complexity — complexity analysis config.
       (r) => ({
         id: 'P5.10',
@@ -1347,19 +1642,28 @@ const C: Array<() => Pillar> = [
         difficulty: 'advanced',
       }),
       // M11: unused_dependencies_detection — depcheck/knip/deptry config.
-      (r) => ({
-        id: 'P5.11',
-        pillar: 'P5',
-        pass:
-          has(r, '.depcheckrc') ||
-          has(r, '.depcheckrc.json') ||
-          has(r, 'knip.json') ||
-          has(r, 'knip.ts') ||
-          /depcheck|deptry|knip/i.test(read(r, 'package.json') + read(r, 'pyproject.toml')),
-        evidence: 'unused dependencies detection',
-        severity: 'low',
-        difficulty: 'intermediate',
-      }),
+      // Verify tool is in deps or on PATH when a config file is the only evidence.
+      (r) => {
+        const hasConfig =
+          has(r, '.depcheckrc') || has(r, '.depcheckrc.json') || has(r, 'knip.json') || has(r, 'knip.ts');
+        const hasDep = /depcheck|deptry|knip/i.test(read(r, 'package.json') + read(r, 'pyproject.toml'));
+        const toolInstalled = toolInDepsOrPath(r, ['depcheck', 'knip', 'deptry']);
+        const pass = hasDep || (hasConfig && toolInstalled) || toolInstalled;
+        return {
+          id: 'P5.11',
+          pillar: 'P5',
+          pass,
+          evidence: pass
+            ? hasDep
+              ? 'unused dep tool in dependencies'
+              : 'unused dep tool installed + config present'
+            : hasConfig
+              ? 'unused dep config exists but tool not installed'
+              : 'no unused dependencies detection',
+          severity: 'low',
+          difficulty: 'intermediate',
+        };
+      },
       // M11: large_file_detection — .gitattributes LFS or linter max-lines rules.
       (r) => ({
         id: 'P5.12',
@@ -1584,14 +1888,21 @@ const C: Array<() => Pillar> = [
         difficulty: 'intermediate',
       }),
       // M14: dast_scanning — OWASP ZAP, Nuclei in CI.
-      (r) => ({
-        id: 'P6.9',
-        pillar: 'P6',
-        pass: /zap|owasp.?zap|nuclei|burp|stackhawk|acunetix/i.test(readWorkflows(r) + read(r, 'package.json')),
-        evidence: 'DAST scanning in CI',
-        severity: 'low',
-        difficulty: 'advanced',
-      }),
+      // Skip for non-web apps (DAST tests running HTTP endpoints, which don't exist for CLI/library repos).
+      (r) => {
+        if (!isWebService(r)) return skip('P6.9', 'P6', 'no web service detected (DAST not applicable)', 'low');
+        const hasDast = /zap|owasp.?zap|nuclei|burp|stackhawk|acunetix/i.test(
+          readWorkflows(r) + read(r, 'package.json'),
+        );
+        return {
+          id: 'P6.9',
+          pillar: 'P6',
+          pass: hasDast,
+          evidence: hasDast ? 'DAST scanning in CI' : 'web service detected but no DAST scanning',
+          severity: 'low',
+          difficulty: 'advanced',
+        };
+      },
       // M16: pii_handling — PII detection tools, data masking, PII documentation.
       (r) => {
         const deps = read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml');
@@ -1626,17 +1937,36 @@ const C: Array<() => Pillar> = [
     id: 'P7',
     scope: 'app',
     checks: [
-      (r) => ({
-        id: 'P7.1',
-        pillar: 'P7',
-        pass:
-          has(r, 'src', 'logging') ||
-          has(r, 'src', 'logger') ||
-          /winston|pino|structlog|logging/i.test(read(r, 'package.json') + read(r, 'requirements.txt')),
-        evidence: 'structured logging',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+      (r) => {
+        // P7.1: Verify structured logging is actually used, not just present.
+        const hasLoggingDir = has(r, 'src', 'logging') || has(r, 'src', 'logger');
+        const hasLoggingDep = /winston|pino|structlog|logging/i.test(
+          read(r, 'package.json') + read(r, 'requirements.txt'),
+        );
+        // If a logging directory exists, verify it's imported by production code.
+        if (hasLoggingDir) {
+          const imported = loggerImportedByProduction(r);
+          return {
+            id: 'P7.1',
+            pillar: 'P7',
+            pass: imported,
+            evidence: imported
+              ? 'structured logging module imported by production code'
+              : 'logging module exists but is not imported by any production code',
+            severity: 'med',
+            difficulty: 'intermediate',
+          };
+        }
+        // If a logging library is in deps, that's sufficient (it's available for use).
+        return {
+          id: 'P7.1',
+          pillar: 'P7',
+          pass: hasLoggingDep,
+          evidence: hasLoggingDep ? 'structured logging library in dependencies' : 'no structured logging',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       (r) => ({
         id: 'P7.2',
         pillar: 'P7',
@@ -1980,17 +2310,84 @@ const C: Array<() => Pillar> = [
     id: 'P9',
     scope: 'app',
     checks: [
-      (r) => ({
-        id: 'P9.1',
-        pillar: 'P9',
-        pass:
-          /"main"\s*[:=]|"bin"|__main__|def main|func main/i.test(read(r, 'package.json') + read(r, 'main.go')) ||
-          has(r, 'bin') ||
-          has(r, 'src', 'main'),
-        evidence: 'entry points',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+      (r) => {
+        // P9.1: Validate entry points are functional, not just present.
+        // For TS/JS: check that main/bin target files exist and bin has a shebang.
+        // For TS repos where bin points to a .ts file without a shebang, flag as broken.
+        const pkg = read(r, 'package.json');
+        let pass = false;
+        let evidence = 'entry points';
+        let pkgObj: any = {};
+        try {
+          pkgObj = JSON.parse(pkg);
+        } catch {
+          /* not json */
+        }
+        // Go main, Python __main__, etc. — simple presence is fine
+        if (has(r, 'main.go') && /func main/.test(read(r, 'main.go'))) {
+          pass = true;
+          evidence = 'Go main entry point';
+        }
+        if (/__main__|def main/.test(read(r, 'pyproject.toml') + read(r, 'setup.py'))) {
+          pass = true;
+          evidence = 'Python main entry point';
+        }
+        // Check package.json main field
+        if (pkgObj.main) {
+          const mainPath = pkgObj.main.replace(/^\.\//, '');
+          if (has(r, ...mainPath.split('/'))) {
+            pass = true;
+            evidence = `main: ${mainPath}`;
+          } else {
+            evidence = `main points to ${mainPath} but file does not exist`;
+          }
+        }
+        // Check package.json bin field
+        if (pkgObj.bin) {
+          const binEntries = typeof pkgObj.bin === 'string' ? { default: pkgObj.bin } : pkgObj.bin;
+          for (const [binName, binPathRaw] of Object.entries(binEntries)) {
+            const binPath = (binPathRaw as string).replace(/^\.\//, '');
+            const binExists = has(r, ...binPath.split('/'));
+            if (!binExists) {
+              // bin file doesn't exist — downgrade
+              pass = false;
+              evidence = `bin "${binName}" points to ${binPath} but file does not exist`;
+              break;
+            }
+            // Check for shebang in bin file
+            const binContent = read(r, ...binPath.split('/'));
+            const hasShebang = /^#!/.test(binContent);
+            // For .ts files, check if it can run without --experimental-strip-types
+            const isTsFile = /\.ts$/.test(binPath);
+            if (isTsFile && !hasShebang) {
+              // .ts bin without shebang won't work when installed as a package
+              pass = false;
+              evidence = `bin "${binName}" is a .ts file without shebang (won't work as installed package)`;
+              break;
+            }
+            if (!hasShebang) {
+              // bin file exists but no shebang — still pass but note it
+              evidence = `bin "${binName}" exists but lacks shebang`;
+            } else {
+              evidence = `bin "${binName}" with shebang`;
+            }
+            pass = true;
+          }
+        }
+        // Fallback: bin/ directory or src/main
+        if (!pass && (has(r, 'bin') || has(r, 'src', 'main'))) {
+          pass = true;
+          evidence = 'entry points (bin dir or src/main)';
+        }
+        return {
+          id: 'P9.1',
+          pillar: 'P9',
+          pass,
+          evidence,
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       (r) => ({
         id: 'P9.2',
         pillar: 'P9',
