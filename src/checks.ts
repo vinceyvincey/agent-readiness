@@ -124,6 +124,35 @@ function isWebService(r: Repo): boolean {
   return webFrameworks.test(deps) || pyWeb.test(deps) || goWeb.test(deps) || rustWeb.test(deps) || hasExpose;
 }
 
+// Detect whether the app connects to a database (driver/ORM dependencies).
+// Used to honor the "Skip for apps without databases" clauses (P8.8).
+function usesDatabase(r: Repo): boolean {
+  const deps =
+    read(r, 'package.json') +
+    read(r, 'requirements.txt') +
+    read(r, 'pyproject.toml') +
+    read(r, 'go.mod') +
+    read(r, 'Cargo.toml');
+  return /\b(prisma|typeorm|sequelize|knex|mikro-orm|mongoose|mongodb|mongo|pg|postgres(ql)?|mysql2?|mariadb|sqlite3?|better-sqlite3|redis|ioredis|couchdb|dynamodb|sqlalchemy|alembic|psycopg2?|pymysql|mysql-connector-python|gorm|sqlx|diesel|sea-orm)\b/i.test(
+    deps,
+  );
+}
+
+// Detect whether the app depends on external runtime services (queues, caches, brokers, DBs).
+// Used to honor the "Skip for apps without external service dependencies" clause (P8.6).
+function usesExternalService(r: Repo): boolean {
+  if (usesDatabase(r)) return true;
+  const deps =
+    read(r, 'package.json') +
+    read(r, 'requirements.txt') +
+    read(r, 'pyproject.toml') +
+    read(r, 'go.mod') +
+    read(r, 'Cargo.toml');
+  return /\b(kafka|kafkajs|rabbitmq|amqplib|nats|memcached|elasticsearch|opensearch|kinesis|bullmq|bull|celery|sidekiq|mqtt|grpc)\b/i.test(
+    deps,
+  );
+}
+
 // Check if a logging module in src/logging/ or src/logger/ is actually imported
 // by at least one non-test production source file.
 function loggerImportedByProduction(r: Repo): boolean {
@@ -591,10 +620,9 @@ const C: Array<() => Pillar> = [
         };
       },
       // M11: api_schema_docs — OpenAPI/Swagger/GraphQL schema files.
-      (r) => ({
-        id: 'P0.9',
-        pillar: 'P0',
-        pass:
+      // Criterion: "Skip for non-API apps (e.g., libraries, CLI tools without HTTP APIs)."
+      (r) => {
+        const hasApiSchema =
           [
             'openapi.json',
             'openapi.yaml',
@@ -619,11 +647,18 @@ const C: Array<() => Pillar> = [
               }
             } catch {}
             return false;
-          })(),
-        evidence: 'API schema docs',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+          })();
+        if (!hasApiSchema && !isWebService(r))
+          return skip('P0.9', 'P0', 'non-API app (CLI/library, no HTTP service detected)', 'med');
+        return {
+          id: 'P0.9',
+          pillar: 'P0',
+          pass: hasApiSchema,
+          evidence: 'API schema docs',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
     ],
   }),
   () => ({
@@ -2080,10 +2115,9 @@ const C: Array<() => Pillar> = [
         difficulty: 'intermediate',
       }),
       // M14: health_checks — /health endpoints, K8s probes, Docker HEALTHCHECK.
-      (r) => ({
-        id: 'P7.12',
-        pillar: 'P7',
-        pass:
+      // Criterion: "Skip for non-deployed services (e.g., libraries, CLI tools, scripts, batch jobs)."
+      (r) => {
+        const hasHealthChecks =
           /\/health|\/healthz|\/ready|\/live|livenessProbe|readinessProbe|HEALTHCHECK/i.test(
             read(r, 'src', 'app.js') +
               read(r, 'src', 'app.ts') +
@@ -2093,11 +2127,24 @@ const C: Array<() => Pillar> = [
               readWorkflows(r),
           ) ||
           has(r, 'src', 'health') ||
-          has(r, 'src', 'healthcheck'),
-        evidence: 'health check endpoints/probes',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+          has(r, 'src', 'healthcheck');
+        // A repo without any HTTP framework and no deployment artifact is not a deployed service.
+        if (!hasHealthChecks && !isWebService(r) && !has(r, 'Dockerfile'))
+          return skip(
+            'P7.12',
+            'P7',
+            'non-deployed service (CLI/library, no web service or Dockerfile detected)',
+            'med',
+          );
+        return {
+          id: 'P7.12',
+          pillar: 'P7',
+          pass: hasHealthChecks,
+          evidence: 'health check endpoints/probes',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       // M14: profiling_instrumentation — APM, Pyroscope, clinic.js.
       (r) => ({
         id: 'P7.13',
@@ -2253,21 +2300,27 @@ const C: Array<() => Pillar> = [
         difficulty: 'intermediate',
       }),
       // M11: local_services_setup — docker-compose.yml or tiltfile.
-      (r) => ({
-        id: 'P8.6',
-        pillar: 'P8',
-        pass:
+      // Criterion: "Skip for apps without external service dependencies."
+      (r) => {
+        const hasServicesSetup =
           has(r, 'docker-compose.yml') ||
           has(r, 'docker-compose.yaml') ||
           has(r, 'compose.yml') ||
           has(r, 'compose.yaml') ||
           has(r, 'Tiltfile') ||
           has(r, 'skaffold.yaml') ||
-          /docker.?compose/i.test(read(r, 'README.md') + read(r, 'AGENTS.md')),
-        evidence: 'local services setup',
-        severity: 'med',
-        difficulty: 'basic',
-      }),
+          /docker.?compose/i.test(read(r, 'README.md') + read(r, 'AGENTS.md'));
+        if (!hasServicesSetup && !usesExternalService(r))
+          return skip('P8.6', 'P8', 'no external service dependencies detected', 'med');
+        return {
+          id: 'P8.6',
+          pillar: 'P8',
+          pass: hasServicesSetup,
+          evidence: 'local services setup',
+          severity: 'med',
+          difficulty: 'basic',
+        };
+      },
       // M14: interactive_qa_exists — documented QA/run path (documentation-only check).
       (r) => ({
         id: 'P8.7',
@@ -2283,10 +2336,9 @@ const C: Array<() => Pillar> = [
         difficulty: 'intermediate',
       }),
       // M14: database_schema — Prisma, TypeORM, SQLAlchemy, SQL migrations.
-      (r) => ({
-        id: 'P8.8',
-        pillar: 'P8',
-        pass:
+      // Criterion: "Skip for apps without databases."
+      (r) => {
+        const hasDbSchema =
           has(r, 'prisma', 'schema.prisma') ||
           has(r, 'schema.prisma') ||
           /typeorm|sqlalchemy|prisma|sequelize|gorm|sqlx|diesel/i.test(
@@ -2299,11 +2351,17 @@ const C: Array<() => Pillar> = [
           has(r, 'migrations') ||
           has(r, 'db', 'migrations') ||
           has(r, 'db', 'schema.sql') ||
-          has(r, 'schema.sql'),
-        evidence: 'database schema files',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+          has(r, 'schema.sql');
+        if (!hasDbSchema && !usesDatabase(r)) return skip('P8.8', 'P8', 'no database detected', 'med');
+        return {
+          id: 'P8.8',
+          pillar: 'P8',
+          pass: hasDbSchema,
+          evidence: 'database schema files',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
     ],
   }),
   () => ({

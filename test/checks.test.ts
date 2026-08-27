@@ -230,6 +230,54 @@ function write(d: string, rel: string, content: string) {
   eq('P0.9 passes on openapi.json', c.pass, true);
 }
 
+// ---- Skip gating: plain CLI repo skips service-only checks (criteria-level skips) ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'cli', devDependencies: { typescript: '^5.4' } }));
+  const r = runReadiness(d);
+  for (const id of ['P0.9', 'P7.12', 'P8.6', 'P8.8']) {
+    const c = r.findings.find((f) => f.id === id)!;
+    eq(`${id} skips on plain CLI repo`, c.skipped, true);
+    eq(`${id} skipped evidence explains why`, c.evidence.startsWith('skipped:'), true);
+  }
+}
+
+// ---- Skip gating: express service without health endpoint FAILS P7.12 (not skipped) ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', '{"dependencies": {"express": "^4.19"}}');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P7.12')!;
+  eq('P7.12 fails (not skipped) on web service without health checks', c.pass === false && !c.skipped, true);
+}
+
+// ---- Skip gating: API-schema-less web service FAILS P0.9 (not skipped) ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', '{"dependencies": {"fastify": "^4.0"}}');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P0.9')!;
+  eq('P0.9 fails (not skipped) on HTTP API without schema', c.pass === false && !c.skipped, true);
+}
+
+// ---- Skip gating: DB driver without schema files FAILS P8.8 (not skipped) ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', '{"dependencies": {"pg": "^8.11"}}');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P8.8')!;
+  eq('P8.8 fails (not skipped) when a DB driver is used', c.pass === false && !c.skipped, true);
+}
+
+// ---- Skip gating: external-service dependency without compose FAILS P8.6 (not skipped) ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', '{"dependencies": {"redis": "^4.6"}}');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P8.6')!;
+  eq('P8.6 fails (not skipped) with a redis dependency', c.pass === false && !c.skipped, true);
+}
+
 // ---- M11: P4.8 issue labeling system ----
 {
   const d = mkRepo();
