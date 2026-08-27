@@ -132,16 +132,31 @@ export default function (pi: ExtensionAPI) {
   });
 
   // readiness_check tool — deterministic check callable by the agent at any time.
+  // Supports three modes:
+  //   1. Default (no checkId, no summary): full report JSON (backward compatible)
+  //   2. summary=true: compact summary with failing/skipped check lists
+  //   3. checkId="P5.8": per-check detail with criterion description, evaluation, and remediation
   const readinessCheck = defineTool({
     name: 'readiness_check',
     label: 'Readiness Check',
     description:
-      'Run the deterministic agent-readiness audit on a repo path and return level, overall score, per-pillar scores, and punchlist.',
+      'Run the agent-readiness audit. Use summary=true for a compact failing-checks list (between fixes). Use checkId to get full detail on a specific check (criterion description, evaluation, remediation action). Default returns the full report.',
     parameters: Type.Object({
       path: Type.Optional(Type.String({ description: 'Repo path to audit (defaults to cwd)' })),
       strict: Type.Optional(Type.Boolean({ description: 'Treat missing mandatory scopes as failure' })),
       verify: Type.Optional(
         Type.Boolean({ description: 'Run runtime verification (actually run test/lint/build commands)' }),
+      ),
+      summary: Type.Optional(
+        Type.Boolean({
+          description: 'Return a compact summary (level, scores, failing checks list) instead of the full report',
+        }),
+      ),
+      checkId: Type.Optional(
+        Type.String({
+          description:
+            'Return detail for a single check (e.g., "P5.8"): finding, criterion description, evaluation, remediation action',
+        }),
       ),
     }),
     async execute(_id, params, _sig, _up, ctx) {
@@ -152,6 +167,73 @@ export default function (pi: ExtensionAPI) {
         strict: params.strict,
         verify: params.verify,
       });
+
+      // Mode: per-check detail
+      if (params.checkId) {
+        const finding = report.findings.find((f) => f.id === params.checkId);
+        if (!finding) {
+          return {
+            content: [{ type: 'text', text: `Check ${params.checkId} not found in report.` }],
+            details: { error: 'check not found', checkId: params.checkId },
+          };
+        }
+        const criterion = engine.getCriterionByPiId?.(params.checkId);
+        const remediation = engine.getRemediationAction?.(params.checkId) || 'No mapped remediation';
+        const detail = {
+          id: finding.id,
+          pillar: finding.pillar,
+          pass: finding.pass,
+          skipped: finding.skipped,
+          evidence: finding.evidence,
+          severity: finding.severity,
+          difficulty: finding.difficulty,
+          verified: finding.verified,
+          runtimeEvidence: finding.runtimeEvidence,
+          criterion: criterion
+            ? {
+                droidId: criterion.droidId,
+                name: criterion.name,
+                description: criterion.description,
+                evaluation: criterion.evaluation,
+                level: criterion.level,
+                scope: criterion.scope,
+                skippable: criterion.skippable,
+              }
+            : null,
+          remediation,
+        };
+        return {
+          content: [{ type: 'text', text: JSON.stringify(detail, null, 2) }],
+          details: { checkId: finding.id, pass: finding.pass, skipped: finding.skipped },
+        };
+      }
+
+      // Mode: compact summary
+      if (params.summary) {
+        const failing = report.findings
+          .filter((f) => !f.pass && !f.skipped)
+          .map((f) => ({ id: f.id, severity: f.severity, evidence: f.evidence }));
+        const skipped = report.findings.filter((f) => f.skipped).map((f) => ({ id: f.id, evidence: f.evidence }));
+        const summary = {
+          level: report.level,
+          overall: report.overall,
+          droidPassRate: report.droidPassRate,
+          pillars: report.pillars,
+          failing,
+          skipped,
+        };
+        return {
+          content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }],
+          details: {
+            level: report.level,
+            overall: report.overall,
+            droidPassRate: report.droidPassRate,
+            failingCount: failing.length,
+          },
+        };
+      }
+
+      // Mode: full report (default, backward compatible)
       return {
         content: [{ type: 'text', text: JSON.stringify(report, null, 2) }],
         details: { level: report.level, overall: report.overall, droidPassRate: report.droidPassRate },

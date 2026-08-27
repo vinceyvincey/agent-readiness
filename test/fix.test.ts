@@ -1,6 +1,9 @@
-// M9: tests for agentic remediation prompt generation + static fix drafts (no regression).
-import { runReadiness } from '../src/engine.ts';
+// Tests for agentic remediation prompt generation + static fix drafts.
+// Validates the new tool-driven iterative prompt structure (short prompts
+// that instruct using readiness_check, not mega-prompts with embedded descriptions).
+import { runReadiness, getRemediationAction } from '../src/engine.ts';
 import { agentPromptFor, assessmentPromptFor, draftsFor, fullHybridPromptFor } from '../src/fix.ts';
+import { getCriterionByPiId, getAgentOnlyCriteria } from '../src/criteria-registry.ts';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -23,50 +26,50 @@ function write(d: string, rel: string, content: string) {
   fs.writeFileSync(p, content);
 }
 
-// ---- agentPromptFor: contains every high-severity failing check ----
+// ---- agentPromptFor: short grounding prompt with failing checks ----
 {
   const d = mkRepo();
-  // Minimal repo — many checks will fail.
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const r = runReadiness(d);
   const prompt = agentPromptFor(r);
-  const highFails = r.findings.filter((f) => !f.pass && f.severity === 'high');
-  // M10: prompt now focuses on top 5 (sorted by severity then difficulty).
-  // Verify that the top-5 sorted failing checks appear in the prompt.
+  const highFails = r.findings.filter((f) => !f.pass && !f.skipped && f.severity === 'high');
+  // Sort same way as the prompt (severity then difficulty) to verify top items appear
   const sevRank: Record<string, number> = { high: 0, med: 1, low: 2 };
   const diffRank: Record<string, number> = { basic: 0, intermediate: 1, advanced: 2 };
-  const sorted = highFails.sort(
+  const sortedHigh = [...highFails].sort(
     (a, b) =>
       (sevRank[a.severity] ?? 3) - (sevRank[b.severity] ?? 3) ||
       (diffRank[a.difficulty || 'intermediate'] ?? 1) - (diffRank[b.difficulty || 'intermediate'] ?? 1),
   );
-  for (const f of sorted.slice(0, 5)) {
-    eq(`prompt contains ${f.id}`, prompt.includes(f.id), true);
+  // Verify that the top sorted failing checks appear in the prompt
+  for (const f of sortedHigh.slice(0, 3)) {
+    eq(`agentPrompt contains ${f.id}`, prompt.includes(f.id), true);
   }
-  // Prompt includes safety instructions (M10: now markdown header format).
-  eq('prompt has safety section', prompt.includes('## Safety'), true);
-  eq('prompt has re-run instruction', prompt.includes('re-run the readiness engine'), true);
-  // M10: prompt includes behavioral verification and negative testing instructions.
-  eq('prompt has behavioral verification', prompt.includes('Verify the fix works'), true);
-  eq('prompt has negative testing', prompt.includes('Negative-test'), true);
-  eq('prompt has commit instruction', prompt.includes('Commit after each'), true);
-  eq('prompt has install deps instruction', prompt.includes('install real dependencies'), true);
-  eq('prompt has strategy section', prompt.includes('## Strategy'), true);
-  eq('prompt has top-5 focus', prompt.includes('highest-leverage'), true);
-  // M11: prompt includes quality standards from Droid trace analysis.
-  eq('prompt has quality standards', prompt.includes('## Quality standards'), true);
-  eq('prompt has no-placeholder rule', prompt.includes('NO** empty placeholder'), true);
-  eq('prompt has BAD/GOOD examples', prompt.includes('BAD') && prompt.includes('GOOD'), true);
-  // M12: prompt includes full criterion descriptions from registry.
-  eq('prompt has description field', prompt.includes('**Description**'), true);
-  eq('prompt has evaluation field', prompt.includes('**Evaluation**'), true);
-  // M12: prompt includes agent-only criteria section.
-  eq('prompt has agent-only section', prompt.includes('## Additional criteria'), true);
-  eq('prompt mentions agent-only count', prompt.includes('agent-only'), true);
-  // M12: prompt includes hybrid scoring model.
-  eq('prompt has scoring model', prompt.includes('## Scoring model'), true);
-  eq('prompt mentions deterministic floor', prompt.includes('floor'), true);
-  eq('prompt mentions agent ceiling', prompt.includes('ceiling'), true);
+  // Prompt is short (< 2000 chars)
+  eq('agentPrompt is short', prompt.length < 2000, true);
+  // Prompt instructs using readiness_check tool
+  eq('agentPrompt mentions readiness_check', prompt.includes('readiness_check'), true);
+  eq('agentPrompt mentions summary=true', prompt.includes('summary=true'), true);
+  eq('agentPrompt mentions checkId', prompt.includes('checkId'), true);
+  // Prompt has quality standards
+  eq('agentPrompt has quality standards', prompt.includes('## Quality standards'), true);
+  eq('agentPrompt has no-placeholder rule', prompt.includes('No empty placeholders'), true);
+  // Prompt has safety section
+  eq('agentPrompt has safety section', prompt.includes('## Safety'), true);
+  // Prompt no longer embeds full criterion descriptions
+  eq('agentPrompt does not embed **Description**', prompt.includes('**Description**'), false);
+  eq('agentPrompt does not embed **Evaluation**', prompt.includes('**Evaluation**'), false);
+}
+
+// ---- agentPromptFor: includes level and score ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  const r = runReadiness(d);
+  const prompt = agentPromptFor(r);
+  eq('agentPrompt has level', prompt.includes(r.level), true);
+  eq('agentPrompt has overall score', prompt.includes(String(r.overall)), true);
+  eq('agentPrompt has droid pass rate', prompt.includes(String(r.droidPassRate)), true);
 }
 
 // ---- agentPromptFor: monorepo awareness ----
@@ -79,18 +82,8 @@ function write(d: string, rel: string, content: string) {
   write(d, '.gitignore', '.env\nnode_modules\ndist\n');
   const r = runReadiness(d);
   const prompt = agentPromptFor(r);
-  eq('prompt mentions monorepo', prompt.includes('monorepo'), true);
-  eq('prompt lists apps', prompt.includes('packages/web') && prompt.includes('packages/api'), true);
-}
-
-// ---- agentPromptFor: includes level and score ----
-{
-  const d = mkRepo();
-  write(d, 'src/index.ts', 'export const x = 1;\n');
-  const r = runReadiness(d);
-  const prompt = agentPromptFor(r);
-  eq('prompt has level', prompt.includes(r.level), true);
-  eq('prompt has overall score', prompt.includes(String(r.overall)), true);
+  eq('agentPrompt mentions monorepo', prompt.includes('Monorepo'), true);
+  eq('agentPrompt lists apps', prompt.includes('packages/web') && prompt.includes('packages/api'), true);
 }
 
 // ---- static draftsFor: no regression (still works) ----
@@ -100,7 +93,6 @@ function write(d: string, rel: string, content: string) {
   const r = runReadiness(d);
   const drafts = draftsFor(r, d);
   eq('static drafts produced', drafts.length > 0, true);
-  // Should include AGENTS.md draft (P1.1/P1.2 will fail)
   eq(
     'drafts include AGENTS.md',
     drafts.some((dr) => dr.file === 'AGENTS.md'),
@@ -108,70 +100,42 @@ function write(d: string, rel: string, content: string) {
   );
 }
 
-// ---- M15: assessmentPromptFor enriched with 5-phase Droid-style methodology ----
+// ---- assessmentPromptFor: short assessment prompt ----
 {
   const d = mkRepo();
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const r = runReadiness(d);
   const prompt = assessmentPromptFor(r);
 
-  // 5-phase methodology headers
-  eq('assessment has Phase 1', prompt.includes('Phase 1 - Repository Scan'), true);
-  eq('assessment has Phase 2', prompt.includes('Phase 2 - Application Discovery'), true);
-  eq('assessment has Phase 3', prompt.includes('Phase 3 - Criterion Evaluation'), true);
-  eq('assessment has Phase 4', prompt.includes('Phase 4 - Report Validation'), true);
-  eq('assessment has Phase 5', prompt.includes('Phase 5 - Scoring'), true);
+  // Prompt is shorter than old mega-prompt (< 2000 chars)
+  eq('assessment prompt is short', prompt.length < 2000, true);
 
   // Do-not-modify instruction
   eq('assessment says DO NOT modify', prompt.includes('DO NOT modify'), true);
+
+  // Instructs using readiness_check
+  eq('assessment mentions readiness_check', prompt.includes('readiness_check'), true);
+  eq('assessment mentions summary=true', prompt.includes('summary=true'), true);
+  eq('assessment mentions checkId', prompt.includes('checkId'), true);
 
   // Deterministic floor score included
   eq('assessment has floor score', prompt.includes(String(r.overall)), true);
   eq('assessment has floor level', prompt.includes(r.level), true);
 
-  // Full (non-truncated) descriptions — prompt should be substantially longer than old 200-char truncation
-  eq('assessment prompt is substantial', prompt.length > 5000, true);
+  // Agent-only criteria mentioned
+  const agentOnly = getAgentOnlyCriteria();
+  for (const c of agentOnly) {
+    eq(`assessment mentions ${c.droidId}`, prompt.includes(c.droidId), true);
+  }
 
-  // All failing checks included (not just top 10)
-  const allFailing = r.findings.filter((f) => !f.pass && !f.skipped);
-  const lastFail = allFailing[allFailing.length - 1];
-  eq('assessment includes all failing checks', lastFail ? prompt.includes(lastFail.id) : true, true);
-
-  // Scope info included
-  eq('assessment has scope info', prompt.includes('per-application') || prompt.includes('repository-wide'), true);
-
-  // App discovery instructions
-  eq('assessment has app discovery', prompt.includes('independently deployable'), true);
+  // No longer embeds full criterion descriptions
+  eq('assessment does not embed **Description**', prompt.includes('**Description**'), false);
 
   // Structured output format
   eq('assessment has verification results format', prompt.includes('### Verification Results'), true);
   eq('assessment has agent-only criteria format', prompt.includes('### Agent-Only Criteria'), true);
   eq('assessment has augmented score format', prompt.includes('### Augmented Score'), true);
   eq('assessment has action items format', prompt.includes('### Action Items'), true);
-
-  // Agent-only verification commands present (4 remaining after M16 Part A)
-  eq('assessment has --listTests command', prompt.includes('--listTests'), true);
-  eq('assessment has --collect-only command', prompt.includes('--collect-only'), true);
-  eq('assessment has devcontainer up command', prompt.includes('devcontainer up'), true);
-
-  // 3 agent-only droidIds mentioned (after M16: unit_tests_runnable now deterministic)
-  const agentOnlyIds = ['devcontainer_runnable', 'n_plus_one_detection', 'interactive_qa_runnable'];
-  for (const id of agentOnlyIds) {
-    eq(`assessment mentions ${id}`, prompt.includes(id), true);
-  }
-
-  // Formerly agent-only criteria are NOT in agent-only section (now deterministic)
-  eq('assessment does not mention circuit_breakers as agent-only', agentOnlyIds.includes('circuit_breakers'), false);
-  eq('assessment does not mention pii_handling as agent-only', agentOnlyIds.includes('pii_handling'), false);
-  eq('assessment does not mention log_scrubbing as agent-only', agentOnlyIds.includes('log_scrubbing'), false);
-  eq(
-    'assessment does not mention unit_tests_runnable as agent-only',
-    agentOnlyIds.includes('unit_tests_runnable'),
-    false,
-  );
-
-  // Skip condition notes for skippable criteria
-  eq('assessment has skip notes', prompt.includes('[Skippable]'), true);
 }
 
 // ---- assessmentPromptFor: monorepo awareness ----
@@ -184,37 +148,50 @@ function write(d: string, rel: string, content: string) {
   write(d, '.gitignore', '.env\nnode_modules\ndist\n');
   const r = runReadiness(d);
   const prompt = assessmentPromptFor(r);
-  eq('assessment mentions monorepo', prompt.includes('monorepo'), true);
-  eq('assessment lists apps in prompt', prompt.includes('packages/web') && prompt.includes('packages/api'), true);
+  eq('assessment mentions monorepo', prompt.includes('Monorepo'), true);
 }
 
-// ---- fullHybridPromptFor: contains both assess and fix phases ----
+// ---- fullHybridPromptFor: short phased prompt ----
 {
   const d = mkRepo();
   write(d, 'src/index.ts', 'export const x = 1;\n');
   const r = runReadiness(d);
   const prompt = fullHybridPromptFor(r);
 
-  eq('fullHybrid has PHASE 1 ASSESS', prompt.includes('PHASE 1'), true);
-  eq('fullHybrid has PHASE 2 FIX', prompt.includes('PHASE 2'), true);
-  eq('fullHybrid has PHASE 3 VALIDATE', prompt.includes('PHASE 3'), true);
-  eq('fullHybrid has PHASE 4 RE-RUN', prompt.includes('PHASE 4'), true);
+  // Prompt has 4 phases
+  eq('fullHybrid has Phase 1 Assess', prompt.includes('Phase 1') && prompt.includes('Assess'), true);
+  eq('fullHybrid has Phase 2 Fix', prompt.includes('Phase 2') && prompt.includes('Fix'), true);
+  eq('fullHybrid has Phase 3 Validate', prompt.includes('Phase 3') && prompt.includes('Validate'), true);
+  eq('fullHybrid has Phase 4 Re-run', prompt.includes('Phase 4') && prompt.includes('Re-run'), true);
+
+  // Prompt is shorter than old mega-prompt (< 2000 chars)
+  eq('fullHybrid prompt is short', prompt.length < 2000, true);
+
+  // Instructs using readiness_check
+  eq('fullHybrid mentions readiness_check', prompt.includes('readiness_check'), true);
+  eq('fullHybrid mentions summary=true', prompt.includes('summary=true'), true);
+  eq('fullHybrid mentions checkId', prompt.includes('checkId'), true);
+
+  // Mentions current scores
   eq('fullHybrid mentions current level', prompt.includes(r.level), true);
   eq('fullHybrid mentions current overall', prompt.includes(String(r.overall)), true);
   eq('fullHybrid mentions droidPassRate', prompt.includes(String(r.droidPassRate)), true);
-  eq(
-    'fullHybrid has agent-only section',
-    prompt.includes('devcontainer_runnable') || prompt.includes('n_plus_one') || prompt.includes('interactive_qa'),
-    true,
-  );
-  eq('fullHybrid has OUTPUT FORMAT', prompt.includes('OUTPUT FORMAT'), true);
+
+  // Agent-only criteria mentioned
+  const agentOnly = getAgentOnlyCriteria();
+  for (const c of agentOnly) {
+    eq(`fullHybrid mentions ${c.droidId}`, prompt.includes(c.droidId), true);
+  }
+
+  // No longer embeds full criterion descriptions
+  eq('fullHybrid does not embed **Description**', prompt.includes('**Description**'), false);
+
+  // Output format sections
+  eq('fullHybrid has OUTPUT FORMAT', prompt.includes('### Output Format') || prompt.includes('Output Format'), true);
   eq('fullHybrid has Score Delta section', prompt.includes('Score Delta'), true);
-  eq(
-    'fullHybrid has Remediation section',
-    prompt.includes('Remediation') || prompt.includes('fix') || prompt.includes('Fix'),
-    true,
-  );
-  eq('fullHybrid has assessment section', prompt.includes('CONFIRMED FAIL') || prompt.includes('FALSE POSITIVE'), true);
+  eq('fullHybrid has Assessment Results', prompt.includes('Assessment Results'), true);
+  eq('fullHybrid has Fixes Applied', prompt.includes('Fixes Applied'), true);
+  eq('fullHybrid has Remaining Issues', prompt.includes('Remaining Issues'), true);
 }
 
 // ---- fullHybridPromptFor: monorepo awareness ----
@@ -227,8 +204,7 @@ function write(d: string, rel: string, content: string) {
   write(d, '.gitignore', '.env\nnode_modules\ndist\n');
   const r = runReadiness(d);
   const prompt = fullHybridPromptFor(r);
-  eq('fullHybrid mentions monorepo', prompt.includes('monorepo'), true);
-  eq('fullHybrid lists apps', prompt.includes('packages/web') && prompt.includes('packages/api'), true);
+  eq('fullHybrid mentions monorepo', prompt.includes('Monorepo'), true);
 }
 
 // ---- fullHybridPromptFor: includes failing check evidence ----
@@ -241,6 +217,75 @@ function write(d: string, rel: string, content: string) {
   // Should mention at least some failing check IDs
   const mentionsFailed = failedIds.some((id) => prompt.includes(id));
   eq('fullHybrid mentions failing check IDs', mentionsFailed, true);
+}
+
+// ---- getRemediationAction: returns meaningful action strings ----
+{
+  const action = getRemediationAction('P2.2');
+  eq('getRemediationAction returns string', typeof action, 'string');
+  eq('getRemediationAction P2.2 mentions test runner', action.includes('test runner'), true);
+  eq('getRemediationAction P5.8 mentions knip', getRemediationAction('P5.8').includes('knip'), true);
+  eq('getRemediationAction unknown returns fallback', getRemediationAction('P99.99'), 'No mapped remediation');
+}
+
+// ---- getCriterionByPiId: returns criterion with description ----
+{
+  const c = getCriterionByPiId('P5.8');
+  eq('getCriterionByPiId P5.8 exists', !!c, true);
+  eq('getCriterionByPiId P5.8 has description', c!.description.length > 50, true);
+  eq('getCriterionByPiId P5.8 has evaluation', c!.evaluation.length > 50, true);
+  eq('getCriterionByPiId P5.8 droidId is dead_code_detection', c!.droidId, 'dead_code_detection');
+}
+
+// ---- Dogfooding: prompt length on this repo (many failing checks) ----
+{
+  const r = runReadiness('.');
+  const fixPrompt = agentPromptFor(r);
+  const fullPrompt = fullHybridPromptFor(r);
+  const assessPrompt = assessmentPromptFor(r);
+  // All prompts should be under 2000 chars even for a repo with many failures
+  eq('dogfood agentPrompt < 2000 chars', fixPrompt.length < 2000, true);
+  eq('dogfood fullHybridPrompt < 2000 chars', fullPrompt.length < 2000, true);
+  eq('dogfood assessmentPrompt < 2000 chars', assessPrompt.length < 2000, true);
+  // All prompts mention readiness_check
+  eq('dogfood agentPrompt mentions readiness_check', fixPrompt.includes('readiness_check'), true);
+  eq('dogfood fullHybridPrompt mentions readiness_check', fullPrompt.includes('readiness_check'), true);
+  eq('dogdog assessmentPrompt mentions readiness_check', assessPrompt.includes('readiness_check'), true);
+}
+
+// ---- Dogfooding: iterative loop simulation on synthetic repo ----
+{
+  const d = mkRepo();
+  write(d, 'src/index.ts', 'export const x = 1;\n');
+  write(d, 'package.json', JSON.stringify({ name: 'test' }));
+
+  // Step 1: get initial report
+  const r1 = runReadiness(d);
+  const p21Before = r1.findings.find((f) => f.id === 'P2.1');
+  eq('iterative: P2.1 fails before fix', p21Before?.pass, false);
+
+  // Step 2: agent would call readiness_check with checkId="P2.1" to get detail
+  const criterion = getCriterionByPiId('P2.1');
+  const remediation = getRemediationAction('P2.1');
+  eq('iterative: P2.1 criterion exists', !!criterion, true);
+  eq('iterative: P2.1 remediation mentions test', remediation.includes('test'), true);
+
+  // Step 3: simulate fix (add test files)
+  write(d, 'test/foo.test.ts', 'test("x", () => {});');
+  const pkg = JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8'));
+  pkg.scripts = { test: 'vitest' };
+  pkg.devDependencies = { vitest: '^1.0' };
+  fs.writeFileSync(path.join(d, 'package.json'), JSON.stringify(pkg));
+
+  // Step 4: re-run readiness_check to verify fix
+  const r2 = runReadiness(d);
+  const p21After = r2.findings.find((f) => f.id === 'P2.1');
+  eq('iterative: P2.1 passes after fix', p21After?.pass, true);
+
+  // Step 5: verify failing count decreased
+  const failingBefore = r1.findings.filter((f) => !f.pass && !f.skipped).length;
+  const failingAfter = r2.findings.filter((f) => !f.pass && !f.skipped).length;
+  eq('iterative: failing count decreased', failingAfter < failingBefore, true);
 }
 
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));

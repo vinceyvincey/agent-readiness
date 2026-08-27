@@ -559,12 +559,12 @@ function write(d: string, rel: string, content: string) {
   const r = runReadiness(d);
   const { fullHybridPromptFor } = await import('../src/fix.ts');
   const prompt = fullHybridPromptFor(r);
-  eq('fullHybridPromptFor has 4 phases', (prompt.match(/PHASE \d/g) || []).length >= 4, true);
-  eq('fullHybridPromptFor has ASSESS phase', prompt.includes('ASSESS'), true);
-  eq('fullHybridPromptFor has FIX phase', prompt.includes('FIX'), true);
-  eq('fullHybridPromptFor has VALIDATE phase', prompt.includes('VALIDATE'), true);
-  eq('fullHybridPromptFor has RE-RUN phase', prompt.includes('RE-RUN'), true);
-  eq('fullHybridPromptFor has OUTPUT FORMAT', prompt.includes('OUTPUT FORMAT'), true);
+  eq('fullHybridPromptFor has Phase 1', prompt.includes('Phase 1'), true);
+  eq('fullHybridPromptFor has Phase 2', prompt.includes('Phase 2'), true);
+  eq('fullHybridPromptFor has Phase 3', prompt.includes('Phase 3'), true);
+  eq('fullHybridPromptFor has Phase 4', prompt.includes('Phase 4'), true);
+  eq('fullHybridPromptFor mentions readiness_check', prompt.includes('readiness_check'), true);
+  eq('fullHybridPromptFor has Output Format', prompt.includes('Output Format'), true);
 }
 
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
