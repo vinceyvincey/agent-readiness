@@ -139,7 +139,11 @@ eq('history chart rendered on baseline', html.includes('class="trend-chart"'), t
 eq('criterion detail dialog present', html.includes('id="criterion-dialog"'), true);
 eq('criterion prompt copy action present', html.includes('id="copy-prompt"'), true);
 eq('global remediation copy action present', html.includes('id="copy-all"'), true);
-eq('criterion rows are keyboard accessible', html.includes('class="criterion-row" tabindex="0"'), true);
+eq('criterion cards use semantic buttons', html.includes('<button class="criterion-card '), true);
+eq('criteria are grouped by category', html.includes('class="panel criterion-category"'), true);
+eq('category headers expose scores', html.includes('class="category-score"'), true);
+eq('criteria matrix labels unmet state', html.includes("state=st==='pass'?'met':st==='fail'?'not met':'N/A'"), true);
+eq('criteria matrix exposes grouped container', html.includes('id="criteria-groups"'), true);
 const m20view = JSON.parse(html.match(/window\.__DATA__ = (\{.*\});<\/script>/s)![1]);
 eq(
   'all findings include rationale',
