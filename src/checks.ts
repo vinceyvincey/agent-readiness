@@ -153,6 +153,16 @@ function usesExternalService(r: Repo): boolean {
   );
 }
 
+// Detect whether the app is a deployed service (web framework, Dockerfile, or deploy workflow).
+// Used to skip service-only checks (P7.5-P7.14, P4.16-P4.17) for CLI tools and libraries.
+function isDeployedService(r: Repo): boolean {
+  if (isWebService(r)) return true;
+  if (has(r, 'Dockerfile') || has(r, 'docker-compose.yml') || has(r, 'compose.yml') || has(r, 'compose.yaml'))
+    return true;
+  // Check for deploy/release workflows in CI
+  return /deploy|release/i.test(readWorkflows(r));
+}
+
 // Check if a logging module in src/logging/ or src/logger/ is actually imported
 // by at least one non-test production source file.
 function loggerImportedByProduction(r: Repo): boolean {
@@ -986,14 +996,19 @@ const C: Array<() => Pillar> = [
         severity: 'med',
         difficulty: 'intermediate',
       }),
-      // M11: test_naming_conventions — testMatch/testRegex in jest/vitest config.
+      // M11: test_naming_conventions — testMatch/testRegex in jest/vitest config,
+      // or documented naming conventions for custom test runners.
       (r) => {
         const vitest = read(r, 'vitest.config.ts') + read(r, 'vitest.config.js');
         const jest = read(r, 'jest.config.ts') + read(r, 'jest.config.js');
         const pyproject = read(r, 'pyproject.toml');
         const hasPattern =
           /testMatch|testRegex|testPathPattern/i.test(vitest + jest) ||
-          (/\[tool\.pytest/.test(pyproject) && /python_files|testpaths/.test(pyproject));
+          (/\[tool\.pytest/.test(pyproject) && /python_files|testpaths/.test(pyproject)) ||
+          // Also accept documented naming conventions for custom test runners
+          /test.*naming|naming.*convention|\*\.test\.(ts|js|\*)|\*\.spec\.(ts|js|\*)/i.test(
+            read(r, 'AGENTS.md') + read(r, 'README.md') + read(r, 'CONTRIBUTING.md'),
+          );
         return {
           id: 'P2.8',
           pillar: 'P2',
@@ -1003,7 +1018,8 @@ const C: Array<() => Pillar> = [
           difficulty: 'intermediate',
         };
       },
-      // M11: test_isolation — parallelization/sharding config.
+      // M11: test_isolation — parallelization/sharding config,
+      // or documented isolation for custom test runners.
       (r) => {
         const pkg = read(r, 'package.json');
         const vitest = read(r, 'vitest.config.ts') + read(r, 'vitest.config.js');
@@ -1011,7 +1027,9 @@ const C: Array<() => Pillar> = [
         const pyproject = read(r, 'pyproject.toml');
         const hasIsolation =
           /--parallel|shard|xdist|pytest-xdist|--runInBand/i.test(pkg + vitest + jest + pyproject) ||
-          /threads|parallel/i.test(vitest + jest);
+          /threads|parallel/i.test(vitest + jest) ||
+          // Also accept documented isolation/parallel execution for custom test runners
+          /parallel|isolation|concurrent|worker/i.test(read(r, 'AGENTS.md') + read(r, 'README.md'));
         return {
           id: 'P2.9',
           pillar: 'P2',
@@ -1479,28 +1497,48 @@ const C: Array<() => Pillar> = [
         };
       },
       // M14: progressive_rollout — canary/percentage rollout configs.
-      (r) => ({
-        id: 'P4.16',
-        pillar: 'P4',
-        pass: /canary|rollout|argorollout|flagger|percentage.?based/i.test(
-          readWorkflows(r) + read(r, 'README.md') + read(r, 'AGENTS.md') + read(r, 'deploy.yaml') + read(r, 'k8s'),
-        ),
-        evidence: 'progressive rollout configured',
-        severity: 'low',
-        difficulty: 'advanced',
-      }),
+      // Skip for repos without deployment artifacts (no Dockerfile, deploy workflow, or k8s).
+      (r) => {
+        if (!isDeployedService(r))
+          return skip(
+            'P4.16',
+            'P4',
+            'no deployment artifacts (no Dockerfile, deploy workflow, or k8s manifests)',
+            'low',
+          );
+        return {
+          id: 'P4.16',
+          pillar: 'P4',
+          pass: /canary|rollout|argorollout|flagger|percentage.?based/i.test(
+            readWorkflows(r) + read(r, 'README.md') + read(r, 'AGENTS.md') + read(r, 'deploy.yaml') + read(r, 'k8s'),
+          ),
+          evidence: 'progressive rollout configured',
+          severity: 'low',
+          difficulty: 'advanced',
+        };
+      },
       // M14: rollback_automation — rollback workflow or documented procedure.
-      (r) => ({
-        id: 'P4.17',
-        pillar: 'P4',
-        pass:
-          /rollback|revert.?auto|argo.?sync.?rollback/i.test(
-            readWorkflows(r) + read(r, 'README.md') + read(r, 'AGENTS.md'),
-          ) || has(r, '.github', 'workflows', 'rollback.yml'),
-        evidence: 'rollback automation',
-        severity: 'low',
-        difficulty: 'advanced',
-      }),
+      // Skip for repos without deployment artifacts.
+      (r) => {
+        if (!isDeployedService(r))
+          return skip(
+            'P4.17',
+            'P4',
+            'no deployment artifacts (no Dockerfile, deploy workflow, or k8s manifests)',
+            'low',
+          );
+        return {
+          id: 'P4.17',
+          pillar: 'P4',
+          pass:
+            /rollback|revert.?auto|argo.?sync.?rollback/i.test(
+              readWorkflows(r) + read(r, 'README.md') + read(r, 'AGENTS.md'),
+            ) || has(r, '.github', 'workflows', 'rollback.yml'),
+          evidence: 'rollback automation',
+          severity: 'low',
+          difficulty: 'advanced',
+        };
+      },
     ],
   }),
   () => ({
@@ -2031,49 +2069,69 @@ const C: Array<() => Pillar> = [
         difficulty: 'intermediate',
       }),
       // M11: distributed_tracing — OpenTelemetry/X-Request-ID in deps.
-      (r) => ({
-        id: 'P7.5',
-        pillar: 'P7',
-        pass: /opentelemetry|otel|x-request-id|trace.id|jaeger|zipkin/i.test(
-          read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml') + read(r, 'go.mod'),
-        ),
-        evidence: 'distributed tracing',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+      // Skip for non-deployed services (CLI tools, libraries, scripts).
+      (r) => {
+        if (!isDeployedService(r))
+          return skip('P7.5', 'P7', 'non-deployed service (no web framework, Dockerfile, or deploy workflow)', 'med');
+        return {
+          id: 'P7.5',
+          pillar: 'P7',
+          pass: /opentelemetry|otel|x-request-id|trace.id|jaeger|zipkin/i.test(
+            read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml') + read(r, 'go.mod'),
+          ),
+          evidence: 'distributed tracing',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       // M11: metrics_collection — Datadog/Prometheus/New Relic in deps.
-      (r) => ({
-        id: 'P7.6',
-        pillar: 'P7',
-        pass: /datadog|prometheus|new.?relic|cloudwatch|statsd|grafana|axiom/i.test(
-          read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml') + read(r, 'go.mod'),
-        ),
-        evidence: 'metrics collection',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+      // Skip for non-deployed services.
+      (r) => {
+        if (!isDeployedService(r))
+          return skip('P7.6', 'P7', 'non-deployed service (no web framework, Dockerfile, or deploy workflow)', 'med');
+        return {
+          id: 'P7.6',
+          pillar: 'P7',
+          pass: /datadog|prometheus|new.?relic|cloudwatch|statsd|grafana|axiom/i.test(
+            read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml') + read(r, 'go.mod'),
+          ),
+          evidence: 'metrics collection',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       // M11: error_tracking_contextualized — Sentry/Bugsnag/Rollbar in deps.
-      (r) => ({
-        id: 'P7.7',
-        pillar: 'P7',
-        pass: /sentry|bugsnag|rollbar|catchpoint|airbrake/i.test(
-          read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml') + read(r, 'go.mod'),
-        ),
-        evidence: 'error tracking',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+      // Skip for non-deployed services.
+      (r) => {
+        if (!isDeployedService(r))
+          return skip('P7.7', 'P7', 'non-deployed service (no web framework, Dockerfile, or deploy workflow)', 'med');
+        return {
+          id: 'P7.7',
+          pillar: 'P7',
+          pass: /sentry|bugsnag|rollbar|catchpoint|airbrake/i.test(
+            read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml') + read(r, 'go.mod'),
+          ),
+          evidence: 'error tracking',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       // M11: product_analytics_instrumentation — Mixpanel/Amplitude/PostHog in deps.
-      (r) => ({
-        id: 'P7.8',
-        pillar: 'P7',
-        pass: /mixpanel|amplitude|posthog|heap|ga4|google.?analytics|segment/i.test(
-          read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml'),
-        ),
-        evidence: 'product analytics',
-        severity: 'low',
-        difficulty: 'intermediate',
-      }),
+      // Skip for non-deployed services.
+      (r) => {
+        if (!isDeployedService(r))
+          return skip('P7.8', 'P7', 'non-deployed service (no web framework, Dockerfile, or deploy workflow)', 'low');
+        return {
+          id: 'P7.8',
+          pillar: 'P7',
+          pass: /mixpanel|amplitude|posthog|heap|ga4|google.?analytics|segment/i.test(
+            read(r, 'package.json') + read(r, 'requirements.txt') + read(r, 'pyproject.toml'),
+          ),
+          evidence: 'product analytics',
+          severity: 'low',
+          difficulty: 'intermediate',
+        };
+      },
       // M11: runbooks_documented — runbook dir or SRE docs.
       (r) => ({
         id: 'P7.9',
@@ -2089,31 +2147,41 @@ const C: Array<() => Pillar> = [
         difficulty: 'basic',
       }),
       // M14: alerting_configured — PagerDuty/OpsGenie in deps or config.
-      (r) => ({
-        id: 'P7.10',
-        pillar: 'P7',
-        pass: /pagerduty|opsgenie|alerting|alert.?rule|on.?call/i.test(
-          read(r, 'package.json') +
-            read(r, 'requirements.txt') +
-            read(r, 'README.md') +
-            read(r, 'AGENTS.md') +
-            readWorkflows(r),
-        ),
-        evidence: 'alerting configured',
-        severity: 'med',
-        difficulty: 'intermediate',
-      }),
+      // Skip for non-deployed services.
+      (r) => {
+        if (!isDeployedService(r))
+          return skip('P7.10', 'P7', 'non-deployed service (no web framework, Dockerfile, or deploy workflow)', 'med');
+        return {
+          id: 'P7.10',
+          pillar: 'P7',
+          pass: /pagerduty|opsgenie|alerting|alert.?rule|on.?call/i.test(
+            read(r, 'package.json') +
+              read(r, 'requirements.txt') +
+              read(r, 'README.md') +
+              read(r, 'AGENTS.md') +
+              readWorkflows(r),
+          ),
+          evidence: 'alerting configured',
+          severity: 'med',
+          difficulty: 'intermediate',
+        };
+      },
       // M14: deployment_observability — dashboard links, deploy notifications.
-      (r) => ({
-        id: 'P7.11',
-        pillar: 'P7',
-        pass: /datadog|grafana|new.?relic|dashboard|deploy.?notification|slack.?webhook/i.test(
-          read(r, 'README.md') + read(r, 'AGENTS.md') + readWorkflows(r) + read(r, 'package.json'),
-        ),
-        evidence: 'deployment observability',
-        severity: 'low',
-        difficulty: 'intermediate',
-      }),
+      // Skip for non-deployed services.
+      (r) => {
+        if (!isDeployedService(r))
+          return skip('P7.11', 'P7', 'non-deployed service (no web framework, Dockerfile, or deploy workflow)', 'low');
+        return {
+          id: 'P7.11',
+          pillar: 'P7',
+          pass: /datadog|grafana|new.?relic|dashboard|deploy.?notification|slack.?webhook/i.test(
+            read(r, 'README.md') + read(r, 'AGENTS.md') + readWorkflows(r) + read(r, 'package.json'),
+          ),
+          evidence: 'deployment observability',
+          severity: 'low',
+          difficulty: 'intermediate',
+        };
+      },
       // M14: health_checks — /health endpoints, K8s probes, Docker HEALTHCHECK.
       // Criterion: "Skip for non-deployed services (e.g., libraries, CLI tools, scripts, batch jobs)."
       (r) => {
@@ -2146,32 +2214,42 @@ const C: Array<() => Pillar> = [
         };
       },
       // M14: profiling_instrumentation — APM, Pyroscope, clinic.js.
-      (r) => ({
-        id: 'P7.13',
-        pillar: 'P7',
-        pass: /datadog.*apm|dynatrace|pyroscope|parca|cloud.?profiler|clinic\.js|\b0x\b|flame.?graph/i.test(
-          read(r, 'package.json') +
-            read(r, 'requirements.txt') +
-            read(r, 'pyproject.toml') +
-            read(r, 'go.mod') +
-            readWorkflows(r),
-        ),
-        evidence: 'profiling instrumentation',
-        severity: 'low',
-        difficulty: 'advanced',
-      }),
+      // Skip for non-deployed services.
+      (r) => {
+        if (!isDeployedService(r))
+          return skip('P7.13', 'P7', 'non-deployed service (no web framework, Dockerfile, or deploy workflow)', 'low');
+        return {
+          id: 'P7.13',
+          pillar: 'P7',
+          pass: /datadog.*apm|dynatrace|pyroscope|parca|cloud.?profiler|clinic\.js|\b0x\b|flame.?graph/i.test(
+            read(r, 'package.json') +
+              read(r, 'requirements.txt') +
+              read(r, 'pyproject.toml') +
+              read(r, 'go.mod') +
+              readWorkflows(r),
+          ),
+          evidence: 'profiling instrumentation',
+          severity: 'low',
+          difficulty: 'advanced',
+        };
+      },
       // M14: error_to_insight_pipeline — Sentry-GitHub integration, error-to-issue automation.
-      (r) => ({
-        id: 'P7.14',
-        pillar: 'P7',
-        pass:
-          /sentry.*webhook|SENTRY_ORG|SENTRY_PROJECT|error.?to.?issue|pagerduty.*issue/i.test(
-            readWorkflows(r) + read(r, '.env.example') + read(r, 'package.json'),
-          ) || /sentry\.io/i.test(readWorkflows(r)),
-        evidence: 'error-to-insight pipeline',
-        severity: 'low',
-        difficulty: 'advanced',
-      }),
+      // Skip for non-deployed services.
+      (r) => {
+        if (!isDeployedService(r))
+          return skip('P7.14', 'P7', 'non-deployed service (no web framework, Dockerfile, or deploy workflow)', 'low');
+        return {
+          id: 'P7.14',
+          pillar: 'P7',
+          pass:
+            /sentry.*webhook|SENTRY_ORG|SENTRY_PROJECT|error.?to.?issue|pagerduty.*issue/i.test(
+              readWorkflows(r) + read(r, '.env.example') + read(r, 'package.json'),
+            ) || /sentry\.io/i.test(readWorkflows(r)),
+          evidence: 'error-to-insight pipeline',
+          severity: 'low',
+          difficulty: 'advanced',
+        };
+      },
       // M16: circuit_breakers — circuit breaker libraries, service mesh, custom patterns.
       (r) => {
         const deps =
@@ -2432,10 +2510,31 @@ const C: Array<() => Pillar> = [
             pass = true;
           }
         }
-        // Fallback: bin/ directory or src/main
-        if (!pass && (has(r, 'bin') || has(r, 'src', 'main'))) {
+        // Fallback: bin/ directory (verify at least one file has a shebang) or src/main
+        if (!pass && has(r, 'bin')) {
+          try {
+            const binDir = path.join(r.root, 'bin');
+            const binFiles = fs.readdirSync(binDir).filter((f) => fs.statSync(path.join(binDir, f)).isFile());
+            const hasShebangedBin = binFiles.some((f) => {
+              try {
+                return /^#!/.test(fs.readFileSync(path.join(binDir, f), 'utf8'));
+              } catch {
+                return false;
+              }
+            });
+            if (hasShebangedBin) {
+              pass = true;
+              evidence = 'entry points (bin/ with shebanged executable)';
+            } else {
+              evidence = 'bin/ directory exists but no file has a shebang';
+            }
+          } catch {
+            evidence = 'bin/ directory not readable';
+          }
+        }
+        if (!pass && has(r, 'src', 'main')) {
           pass = true;
-          evidence = 'entry points (bin dir or src/main)';
+          evidence = 'entry points (src/main)';
         }
         return {
           id: 'P9.1',

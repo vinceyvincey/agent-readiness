@@ -102,7 +102,7 @@ process.exit(1);
         verifications.push({
           checkId: 'P2.2',
           description: 'Verify test runner works',
-          command: ['npm', 'test', '--', '--listTests'],
+          command: ['npm', 'test'],
           timeoutMs: 30000,
         });
       }

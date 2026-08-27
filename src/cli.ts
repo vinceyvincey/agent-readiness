@@ -20,7 +20,7 @@ import { runReadiness, writeReport, renderMarkdown, MANDATORY } from './engine.t
 import { draftsFor, writeFixes, agentPromptFor, assessmentPromptFor } from './fix.ts';
 import { readHistory, trend } from './history.ts';
 import { badgeMarkdown } from './badge.ts';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
 import * as path from 'node:path';
 import { resolveFlags } from './flags.ts';
 
@@ -80,6 +80,25 @@ function runPiAgent(
     error: res.error?.message,
     status: res.status,
   };
+}
+
+// Helper: run a prompt via pi agent with streaming output (async).
+// Pipes pi's stdout/stderr directly to the parent process so output is visible
+// in real time during long agent sessions.
+function runPiAgentAsync(prompt: string, cwd: string, timeoutSec: number): Promise<{ status: number | null }> {
+  return new Promise((resolve) => {
+    const env = { ...process.env, PI_MODEL: modelId };
+    const child = spawn('pi', ['-p', prompt], { cwd, env, stdio: 'inherit' });
+    const timer = setTimeout(() => child.kill('SIGTERM'), timeoutSec * 1000);
+    child.on('exit', (code) => {
+      clearTimeout(timer);
+      resolve({ status: code });
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve({ status: 1 });
+    });
+  });
 }
 
 // --agent (without --fix): hybrid assessment mode.
@@ -187,9 +206,7 @@ if (fix) {
         process.stdout.write(
           `\n## Agent remediation session (model: ${modelId})\nLaunching pi agent with a grounded remediation prompt...\n`,
         );
-      const result = runPiAgent(prompt, target);
-      if (result.stdout) process.stdout.write(result.stdout);
-      if (result.stderr) process.stderr.write(result.stderr);
+      await runPiAgentAsync(prompt, target, timeoutSec);
       // Re-run readiness to show the delta.
       const postReport = runReadiness(target, { model: modelId, strict });
       if (!json) process.stdout.write('\n## Post-fix readiness\n' + renderMarkdown(postReport));

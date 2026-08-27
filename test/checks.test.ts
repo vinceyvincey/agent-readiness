@@ -511,5 +511,92 @@ function write(d: string, rel: string, content: string) {
   eq('P0.8 passes on typedoc in devDependencies', c.pass, true);
 }
 
+// ---- Skip gating: plain CLI repo skips remaining service-only P7 checks ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'cli', devDependencies: { typescript: '^5.4' } }));
+  const r = runReadiness(d);
+  for (const id of ['P7.5', 'P7.6', 'P7.7', 'P7.8', 'P7.10', 'P7.11', 'P7.13', 'P7.14']) {
+    const c = r.findings.find((f) => f.id === id)!;
+    eq(`${id} skips on plain CLI repo`, c.skipped, true);
+    eq(`${id} skipped evidence explains why`, c.evidence.startsWith('skipped:'), true);
+  }
+}
+
+// ---- Skip gating: plain CLI repo skips deployment checks P4.16/P4.17 ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'cli', devDependencies: { typescript: '^5.4' } }));
+  const r = runReadiness(d);
+  for (const id of ['P4.16', 'P4.17']) {
+    const c = r.findings.find((f) => f.id === id)!;
+    eq(`${id} skips on plain CLI repo`, c.skipped, true);
+  }
+}
+
+// ---- Skip gating: web service does NOT skip service-only checks ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', '{"dependencies": {"express": "^4.19"}}');
+  const r = runReadiness(d);
+  for (const id of ['P7.5', 'P7.6', 'P7.7', 'P7.10']) {
+    const c = r.findings.find((f) => f.id === id)!;
+    eq(`${id} runs (not skipped) on web service`, !c.skipped, true);
+    eq(`${id} fails on web service without observability`, c.pass, false);
+  }
+}
+
+// ---- Skip gating: Dockerfile makes it a deployed service ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', '{"name": "app"}');
+  write(d, 'Dockerfile', 'FROM node:22\n');
+  const r = runReadiness(d);
+  for (const id of ['P7.5', 'P7.6', 'P7.7']) {
+    const c = r.findings.find((f) => f.id === id)!;
+    eq(`${id} runs (not skipped) with Dockerfile`, !c.skipped, true);
+  }
+}
+
+// ---- P2.8: custom test runner naming convention in AGENTS.md ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'node run-tests.ts' } }));
+  write(d, 'AGENTS.md', '# Agent Guide\n\nTest naming convention: all test files match *.test.ts\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P2.8')!;
+  eq('P2.8 passes with documented naming convention', c.pass, true);
+}
+
+// ---- P2.9: custom test runner isolation in README ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'test', scripts: { test: 'node run-tests.ts' } }));
+  write(d, 'README.md', '# Project\n\nTests run in parallel worker threads.\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P2.9')!;
+  eq('P2.9 passes with documented parallel execution', c.pass, true);
+}
+
+// ---- P9.1: bin/ dir without shebang fails fallback ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'test' }));
+  write(d, 'bin/helper.js', 'console.log("no shebang");\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P9.1')!;
+  eq('P9.1 fails on bin/ without shebang', c.pass, false);
+}
+
+// ---- P9.1: bin/ dir with shebang passes fallback ----
+{
+  const d = mkRepo();
+  write(d, 'package.json', JSON.stringify({ name: 'test' }));
+  write(d, 'bin/run.js', '#!/usr/bin/env node\nconsole.log("ok");\n');
+  const r = runReadiness(d);
+  const c = r.findings.find((f) => f.id === 'P9.1')!;
+  eq('P9.1 passes on bin/ with shebanged file', c.pass, true);
+}
+
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);
