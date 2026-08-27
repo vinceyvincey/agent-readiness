@@ -46,8 +46,13 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.68.0",
     "@typescript-eslint/parser": "^8.68.0",
+    "depcheck": "^1.4.7",
     "eslint": "^9.0.0",
+    "jscpd": "^5.0.16",
+    "knip": "^6.32.3",
     "prettier": "^3.0.0",
+    "semantic-release": "^25.0.9",
+    "typedoc": "^0.28.20",
     "typescript": "^5.4.0"
   }
 }
