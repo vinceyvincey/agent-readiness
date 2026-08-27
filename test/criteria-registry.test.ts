@@ -1,4 +1,4 @@
-// M12: tests for the 84-criterion registry.
+// M12: tests for the 113-criterion registry.
 import {
   CRITERIA_REGISTRY,
   getCriterionByPiId,
@@ -17,7 +17,7 @@ const eq = (label: string, got: any, want: any) => {
 };
 
 // Registry completeness
-eq('registry has 84 entries', CRITERIA_REGISTRY.length, 84);
+eq('registry has 113 entries', CRITERIA_REGISTRY.length, 113);
 eq(
   'all entries have droidId',
   CRITERIA_REGISTRY.every((c) => c.droidId.length > 0),
@@ -52,9 +52,9 @@ eq(
 // Pi mapping
 const piMapped = getPiMappedCriteria();
 const agentOnly = getAgentOnlyCriteria();
-eq('pi-mapped + agent-only = 84', piMapped.length + agentOnly.length, 84);
+eq('pi-mapped + agent-only = 113', piMapped.length + agentOnly.length, 113);
 eq('agent-only count is 3', agentOnly.length, 3);
-eq('pi-mapped count is 81', piMapped.length, 81);
+eq('pi-mapped count is 110', piMapped.length, 110);
 eq(
   'agent-only has no piId',
   agentOnly.every((c) => c.piId === null),

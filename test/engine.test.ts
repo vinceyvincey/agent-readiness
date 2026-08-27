@@ -6,7 +6,10 @@ import {
   MANDATORY,
   runReadiness,
   writeReport,
+  getRemediationAction,
 } from '../src/engine.ts';
+import { getCriterionByPiId } from '../src/criteria-registry.ts';
+import { getPillars } from '../src/checks.ts';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -66,6 +69,32 @@ eq('report.json droidScoring is boolean', typeof j.droidScoring, 'boolean');
 eq('report.json droidScoring false by default', j.droidScoring, false);
 eq('report.json run.commitHash non-empty (git repo)', j.run.commitHash.length > 0, true);
 eq('report.json run.branch non-empty (git repo)', j.run.branch.length > 0, true);
+
+// Completeness: every deterministic check ID must have a criterion registry entry.
+const pillars = getPillars();
+const allCheckIds: string[] = [];
+const tmpAudit = fs.mkdtempSync(path.join(os.tmpdir(), 'ar-audit-'));
+for (const pillar of pillars) {
+  for (const check of pillar.checks) {
+    try {
+      allCheckIds.push(check({ root: tmpAudit }).id);
+    } catch {
+      /* skip checks that error on empty dir */
+    }
+  }
+}
+fs.rmSync(tmpAudit, { recursive: true, force: true });
+
+for (const id of allCheckIds) {
+  const criterion = getCriterionByPiId(id);
+  eq(`registry has entry for ${id}`, criterion !== undefined, true);
+}
+
+// Completeness: every deterministic check ID must have a remediation action.
+for (const id of allCheckIds) {
+  const action = getRemediationAction(id);
+  eq(`remediation has entry for ${id}`, action !== 'No mapped remediation', true);
+}
 
 console.log('\n' + (failures === 0 ? 'ALL PASS' : failures + ' FAILURES'));
 process.exit(failures === 0 ? 0 : 1);

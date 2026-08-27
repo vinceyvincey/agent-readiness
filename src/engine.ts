@@ -133,6 +133,37 @@ const REMEDIATION_ACTIONS: Record<string, string> = {
     'Add PII handling: install Presidio/DLP tools, add data masking libraries, or document PII handling procedures in AGENTS.md.',
   'P2.12':
     'Ensure tests are runnable: verify test command exits 0 with --listTests/--collect-only. Fix any configuration or dependency issues.',
+  // Backfilled remediation actions for checks that were missing entries.
+  'P0.4': 'Add a CHANGELOG.md file or ensure package.json has a "version" field.',
+  'P0.5': 'Create an examples/ or example/ directory with runnable code samples.',
+  'P1.3': 'Add a CONTRIBUTING.md file or expand AGENTS.md with substantive contributor guidance (>200 chars).',
+  'P1.5': 'Add a task shortcut: create a Makefile, justfile, Taskfile.yml, or scripts/setup directory.',
+  'P2.5': 'Create a test fixtures directory (fixtures/, testdata/, or __fixtures__/) with reusable test data.',
+  'P3.3': 'Add root-level scripts: define "build" and/or "start" scripts in package.json, or add Makefile targets.',
+  'P3.4': 'Add a dependency manifest (package.json, pyproject.toml, requirements.txt, go.mod, or Cargo.toml).',
+  'P3.6':
+    'Split dev and prod dependencies: add devDependencies (TS), requirements-dev.txt (Py), or a dev group in pyproject.toml.',
+  'P4.4': 'Add a CODEOWNERS file (.github/CODEOWNERS or root CODEOWNERS) to define code ownership rules.',
+  'P4.5': 'Add dependency update automation: configure Dependabot (.github/dependabot.yml) or Renovate.',
+  'P5.2': 'Add a code formatter: install prettier/biome/ruff-format and add a format script to package.json.',
+  'P5.4': 'Remove or split files larger than 500KB. Use .gitattributes LFS for large binary files if needed.',
+  'P5.5': 'Add consistent config: create a tsconfig.json (TS) or .editorconfig (any language).',
+  'P6.3': 'Remove tracked .env files from git with `git rm --cached .env` and add them to .gitignore.',
+  'P6.5': 'Add license compliance scanning: install license-checker, fossa, or syft and add a CI check.',
+  'P7.1': 'Add structured logging: install winston/pino (TS) or structlog (Py) and import it in production code.',
+  'P7.2':
+    'Remove silent error swallowing: replace `except: pass` and empty catch blocks with proper error handling or logging.',
+  'P7.3': 'Add a mock/dev path: reference NODE_ENV/TEST/--dry-run in docs, or create .env.example with mock values.',
+  'P7.4': 'Make log level configurable: add LOG_LEVEL to .env.example or config file so verbosity can be adjusted.',
+  'P8.3':
+    'Add a devcontainer or Docker setup: create .devcontainer/devcontainer.json, Dockerfile, or docker-compose.yml.',
+  'P8.4': 'Pin a runtime version: add .nvmrc, .tool-versions, or engines field in package.json.',
+  'P8.5': 'Document non-GUI/headless run: add test/headless/--no-sandbox references to README or package.json.',
+  'P9.1':
+    'Fix entry points: ensure package.json main/bin fields point to existing files with shebangs. Add a wrapper for .ts bins.',
+  'P9.2': 'Restructure the repo: consolidate or split top-level directories to between 2 and 30 non-hidden dirs.',
+  'P9.3': 'Establish module boundaries: create src/, lib/, packages/, or internal/ directory structure.',
+  'P9.4': 'Add per-module docs: create src/README.md, lib/README.md, or per-package README files in packages/.',
 };
 
 // Lookup remediation action for a check ID. Used by the readiness_check tool's detail mode.

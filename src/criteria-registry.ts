@@ -1,4 +1,4 @@
-// M12: Criterion description registry — all 84 Droid criteria with full descriptions,
+// M12: Criterion description registry — all 113 Droid criteria with full descriptions,
 // evaluation instructions, and pi check ID mappings. Sourced from actual Droid session traces.
 // This is the single source of truth for criterion context in agentPromptFor().
 
@@ -1008,6 +1008,344 @@ export const CRITERIA_REGISTRY: CriterionDef[] = [
       'Check for Sentry-GitHub/GitLab integration: search for sentry.io webhook in .github/workflows or repo settings, OR Sentry issue linking config (SENTRY_ORG, SENTRY_PROJECT in env). Also check for error-to-issue automation: GitHub Actions that create issues from errors, or PagerDuty/OpsGenie integrations with issue creation. PASS if any error tracking tool has issue creation integration configured.',
     evaluation:
       'Error to insight pipeline – Check for Sentry-GitHub/GitLab integration: search for sentry.io webhook in .github/workflows or repo settings, OR Sentry issue linking config (SENTRY_ORG, SENTRY_PROJECT in env). Also check for error-to-issue automation: GitHub Actions that create issues from errors, or PagerDuty/OpsGenie integrations with issue creation. PASS if any error tracking tool has issue creation integration configured.',
+  },
+  // Backfilled criteria — deterministic checks that were missing registry entries.
+  {
+    droidId: 'readme_usage',
+    piId: 'P0.2',
+    name: 'README has run/usage section',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'README contains a run, install, start, usage, or quickstart section with commands. PASS if the README content matches /run|install|start|usage|quickstart/i.',
+    evaluation:
+      'README has run/usage section – Check that README.md contains a run, install, start, usage, or quickstart section with exact commands.',
+  },
+  {
+    droidId: 'changelog',
+    piId: 'P0.4',
+    name: 'Version/changelog in README',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'A CHANGELOG.md file exists or the package manifest (package.json) contains a "version" field. PASS if CHANGELOG.md is present or /version/i matches in package.json.',
+    evaluation: 'Version/changelog – Check that CHANGELOG.md exists or package.json has a version field.',
+  },
+  {
+    droidId: 'examples_dir',
+    piId: 'P0.5',
+    name: 'Examples directory',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'An examples/ or example/ directory exists in the repo root, providing runnable examples for users and agents.',
+    evaluation: 'Examples directory – Check that an examples/ or example/ directory exists in the repo root.',
+  },
+  {
+    droidId: 'readme_title',
+    piId: 'P0.6',
+    name: 'README has H1 title',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'README starts with an H1 heading (e.g., "# Project Name"). PASS if /^#\\s+/.test(README.md) and README is non-empty.',
+    evaluation: 'README H1 title – Check that README.md starts with a markdown H1 heading.',
+  },
+  {
+    droidId: 'agents_md_commands',
+    piId: 'P1.2',
+    name: 'AGENTS.md commands match scripts',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'AGENTS.md contains enforceable rules (must/always/never) AND backtick-quoted commands that match real scripts in package.json or Makefile. Commands are verified against actual project scripts, not just presence of text.',
+    evaluation:
+      'AGENTS.md commands – Verify that AGENTS.md has enforceable rules AND that backtick-quoted commands match real scripts in package.json/Makefile (not just decorative text).',
+  },
+  {
+    droidId: 'contributing_docs',
+    piId: 'P1.3',
+    name: 'Contributing guide',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'A CONTRIBUTING.md file exists or AGENTS.md is substantive (>200 chars). Provides guidance for contributors and agents on how to contribute.',
+    evaluation:
+      'Contributing guide – Check that CONTRIBUTING.md exists or AGENTS.md has substantive content (>200 chars).',
+  },
+  {
+    droidId: 'task_shortcut',
+    piId: 'P1.5',
+    name: 'Task shortcut (Makefile/justfile)',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'A task shortcut exists: Makefile, justfile, Taskfile.yml, or scripts/setup directory. Provides one-command access to common development tasks.',
+    evaluation: 'Task shortcut – Check for Makefile, justfile, Taskfile.yml, or scripts/setup directory.',
+  },
+  {
+    droidId: 'connectors',
+    piId: 'P1.8',
+    name: 'Connector integrations',
+    level: 2,
+    scope: 'repo',
+    skippable: true,
+    description:
+      'Connector integrations are configured: .factory/connectors.json exists or .factory/settings.json references connectors. Enables agents to interact with external services.',
+    evaluation:
+      'Connector integrations – Check for .factory/connectors.json or connectors reference in .factory/settings.json.',
+  },
+  {
+    droidId: 'test_config',
+    piId: 'P2.2',
+    name: 'Test runner configured',
+    level: 1,
+    scope: 'app',
+    skippable: false,
+    description:
+      'A test runner is configured: package.json has a "test" script or references jest/vitest/pytest/cypress, OR a test config file exists (jest.config.*, vitest.config.*, pytest.ini).',
+    evaluation:
+      'Test runner configured – Check that package.json has a test script or test runner reference, OR a test config file exists (jest.config.*, vitest.config.*, pytest.ini).',
+  },
+  {
+    droidId: 'test_command',
+    piId: 'P2.3',
+    name: 'Run-test one-liner',
+    level: 1,
+    scope: 'app',
+    skippable: false,
+    description:
+      'A one-liner test command exists: package.json has a "test" script, Makefile exists, pytest.ini exists, or pyproject.toml references pytest/coverage. The command should be runnable without complex setup.',
+    evaluation:
+      'Run-test one-liner – Check that a simple test command is available (npm test, make test, pytest, etc.).',
+  },
+  {
+    droidId: 'test_fixtures',
+    piId: 'P2.5',
+    name: 'Test fixtures',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'A test fixtures directory exists: fixtures/, testdata/, or __fixtures__/. Provides reusable test data for consistent test execution.',
+    evaluation: 'Test fixtures – Check that a fixtures/, testdata/, or __fixtures__/ directory exists.',
+  },
+  {
+    droidId: 'fast_test_path',
+    piId: 'P2.6',
+    name: 'Fast/smoke test path',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'A fast or smoke test path exists: test:fast/test:smoke script in package.json, test-fast/test-smoke Makefile target, vitest/jest testPathIgnorePatterns config, or a test runner is present. Enables quick validation during development.',
+    evaluation:
+      'Fast/smoke test path – Check for test:fast/test:smoke scripts, Makefile fast targets, or vitest/jest testPathIgnorePatterns config.',
+  },
+  {
+    droidId: 'root_scripts',
+    piId: 'P3.3',
+    name: 'Root-level scripts',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'Root-level scripts exist for common operations: package.json has "build" or "start" scripts, Makefile exists, or pyproject.toml has project scripts/console_scripts. Enables agents to build and run the project.',
+    evaluation:
+      'Root-level scripts – Check that package.json has build/start scripts, Makefile exists, or pyproject.toml has console_scripts.',
+  },
+  {
+    droidId: 'dep_manifest',
+    piId: 'P3.4',
+    name: 'Dependency manifest',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'A dependency manifest file exists: package.json, pyproject.toml, requirements.txt, go.mod, or Cargo.toml. Lists all project dependencies for reproducible builds.',
+    evaluation:
+      'Dependency manifest – Check that a dependency manifest file exists (package.json, pyproject.toml, requirements.txt, go.mod, or Cargo.toml).',
+  },
+  {
+    droidId: 'dev_prod_split',
+    piId: 'P3.6',
+    name: 'Dev/prod dependency split',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'Dependencies are split between dev and prod: package.json has devDependencies, requirements-dev.txt exists, or pyproject.toml has a dev dependency group. Separates build/test tooling from runtime dependencies.',
+    evaluation:
+      'Dev/prod dependency split – Check that devDependencies (TS), requirements-dev.txt (Py), or dev dependency group in pyproject.toml exists.',
+  },
+  {
+    droidId: 'ci_workflow',
+    piId: 'P4.1',
+    name: 'CI workflow exists',
+    level: 2,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'A CI workflow exists: .github/workflows/ directory, .gitlab-ci.yml, .circleci/ directory, or Jenkinsfile. Automated CI runs on push and PR events.',
+    evaluation: 'CI workflow – Check that .github/workflows/, .gitlab-ci.yml, .circleci/, or Jenkinsfile exists.',
+  },
+  {
+    droidId: 'ci_test_invocation',
+    piId: 'P4.2',
+    name: 'CI runs tests',
+    level: 2,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'CI workflow includes a real test invocation (not just echo stubs). The workflow should run npm test, pytest, or equivalent and fail the build on test failure.',
+    evaluation:
+      'CI test invocation – Scan CI workflow files for real test commands (npm test, pytest, make test) that would fail the build on test failure.',
+  },
+  {
+    droidId: 'mega_file_detection',
+    piId: 'P5.4',
+    name: 'No mega-files',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'No files larger than 500KB exist in the repo root. Mega-files are difficult for agents to parse and modify. PASS if no tracked files exceed 500KB.',
+    evaluation: 'No mega-files – Check that no files in the repo root exceed 500KB in size.',
+  },
+  {
+    droidId: 'consistent_config',
+    piId: 'P5.5',
+    name: 'Consistent config files',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'Consistent configuration files exist: tsconfig.json (TypeScript) or .editorconfig (any language). Ensures consistent formatting and compilation settings across the project.',
+    evaluation: 'Consistent config – Check that tsconfig.json or .editorconfig exists in the repo root.',
+  },
+  {
+    droidId: 'secret_scan',
+    piId: 'P6.2',
+    name: 'No committed secrets',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'No secrets are committed to the repository. Scans tracked files for common secret patterns (API keys, tokens, private keys). PASS if no secrets are detected in git-tracked files.',
+    evaluation:
+      'No committed secrets – Scan git-tracked files for common secret patterns (API keys, tokens, private keys). Use gitleaks or trufflehog if available, otherwise scan file contents.',
+  },
+  {
+    droidId: 'env_not_tracked',
+    piId: 'P6.3',
+    name: 'No tracked .env',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'No .env files are tracked in git. Uses git-tracked file listing to verify .env, .env.local, .env.prod, .env.development, .env.staging are not committed. Falls back to checking file existence if git is not available.',
+    evaluation:
+      'No tracked .env – Check that .env, .env.local, .env.prod, .env.development, .env.staging are not git-tracked.',
+  },
+  {
+    droidId: 'no_silent_errors',
+    piId: 'P7.2',
+    name: 'No silent error swallowing',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'No silent error swallowing in application code. Checks for "except: pass" (Python) or empty catch blocks "catch() {}" (JavaScript) in src/app.js or src/main.py. PASS if no silent error patterns are found.',
+    evaluation:
+      'No silent errors – Check that src/app.js and src/main.py do not contain "except: pass" or empty catch blocks.',
+  },
+  {
+    droidId: 'mock_dev_path',
+    piId: 'P7.3',
+    name: 'Mock/dev path exists',
+    level: 2,
+    scope: 'app',
+    skippable: true,
+    description:
+      'A mock or development path exists: package.json or README references NODE_ENV, TEST, --dry-run, --mock, or test mode, OR .env.example exists. Enables agents to run the app without real external dependencies.',
+    evaluation:
+      'Mock/dev path – Check that package.json or README references NODE_ENV/TEST/--dry-run/--mock, or .env.example exists.',
+  },
+  {
+    droidId: 'log_level_config',
+    piId: 'P7.4',
+    name: 'Log level configurable',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'Log level is configurable: .env.example or a config file references LOG_LEVEL or verbosity. Enables agents to adjust logging verbosity for debugging.',
+    evaluation: 'Log level config – Check that .env.example or config file references LOG_LEVEL or verbosity.',
+  },
+  {
+    droidId: 'pinned_versions',
+    piId: 'P8.4',
+    name: 'Pinned runtime version',
+    level: 2,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'A runtime version is pinned: .nvmrc, .tool-versions, package.json engines field, or pyproject.toml exists. Ensures agents use the correct runtime version.',
+    evaluation:
+      'Pinned runtime version – Check that .nvmrc, .tool-versions, package.json engines, or pyproject.toml exists.',
+  },
+  {
+    droidId: 'non_gui_run',
+    piId: 'P8.5',
+    name: 'Non-GUI run documented',
+    level: 1,
+    scope: 'repo',
+    skippable: false,
+    description:
+      'The project can be run non-interactively (headless): package.json or README references "test", headless, --no-sandbox, or renderless, OR pytest.ini exists. Ensures agents can run the project without a GUI.',
+    evaluation:
+      'Non-GUI run – Check that package.json or README references test/headless/--no-sandbox/renderless, or pytest.ini exists.',
+  },
+  {
+    droidId: 'entry_points',
+    piId: 'P9.1',
+    name: 'Valid entry points',
+    level: 2,
+    scope: 'app',
+    skippable: false,
+    description:
+      'Valid entry points exist and are functional. Checks Python main entry point, package.json main field (file must exist), and bin field (file must exist, have shebang, and .ts bins are flagged as needing a wrapper). Falls back to bin/ directory or src/main.',
+    evaluation:
+      'Valid entry points – Verify that package.json main/bin fields point to existing files, bin files have shebangs, and .ts bins are flagged. Check for Python __main__ or src/main fallback.',
+  },
+  {
+    droidId: 'repo_shape',
+    piId: 'P9.2',
+    name: 'Legible repo shape',
+    level: 1,
+    scope: 'app',
+    skippable: false,
+    description:
+      'The repo has a legible top-level structure: between 2 and 30 non-hidden top-level directories. Too few suggests flat structure, too many suggests clutter. PASS if top-level non-hidden dir count is between 2 and 30.',
+    evaluation: 'Legible repo shape – Count non-hidden top-level directories. PASS if count is between 2 and 30.',
+  },
+  {
+    droidId: 'per_module_docs',
+    piId: 'P9.4',
+    name: 'Per-module docs',
+    level: 3,
+    scope: 'app',
+    skippable: true,
+    description:
+      'Per-module documentation exists: src/README.md, lib/README.md, or a packages/ directory (which implies per-package docs). Provides context for agents navigating individual modules.',
+    evaluation: 'Per-module docs – Check that src/README.md, lib/README.md, or packages/ directory exists.',
   },
 ];
 
