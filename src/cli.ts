@@ -22,6 +22,7 @@ import { readHistory, trend } from './history.ts';
 import { badgeMarkdown } from './badge.ts';
 import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
+import { resolveFlags } from './flags.ts';
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('--')) || process.cwd();
@@ -52,6 +53,9 @@ const timeoutSec = timeoutArg
   : 300;
 
 const report = runReadiness(target, { model: modelId, strict, verify, droidScoring });
+
+// Feature flags (P4.14): repo-local, evaluated via GrowthBook; see src/flags.ts.
+const flags = resolveFlags({ repoRoot: path.resolve(target) });
 
 // Helper: check if pi CLI is available
 function piAvailable(): boolean {
@@ -172,7 +176,11 @@ if (hist) {
 // --fix: draft remediation for high-priority failed checks (dry-run unless --apply).
 // --fix --agent: drive a pi agent session with a grounded prompt instead of static drafts.
 if (fix) {
-  if (agent) {
+  if (agent && !flags.isOn('remediation.agent-apply')) {
+    // Gated risky path: agent-driven remediation mutates the target repo.
+    if (!json)
+      process.stdout.write(`\n## Agent remediation skipped: feature flag 'remediation.agent-apply' is disabled\n`);
+  } else if (agent) {
     const prompt = agentPromptFor(report);
     if (piAvailable()) {
       if (!json)
@@ -223,7 +231,7 @@ try {
 }
 
 // --open: best-effort open the HTML report in the default browser.
-if (open && htmlPath) {
+if (open && htmlPath && flags.isOn('ui.auto-open-report')) {
   const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
   try {
     spawnSync(cmd, [htmlPath], { stdio: 'ignore' });

@@ -1,0 +1,13 @@
+{
+  "$comment": "Feature-flag definitions for agent-readiness (evaluated with GrowthBook). Defaults keep current CLI behavior; overrides can be committed here per-repo or supplied at runtime via AGENT_READINESS_FLAG_<KEY> env vars.",
+  "features": {
+    "remediation.agent-apply": {
+      "defaultValue": true,
+      "rules": []
+    },
+    "ui.auto-open-report": {
+      "defaultValue": true,
+      "rules": []
+    }
+  }
+}
