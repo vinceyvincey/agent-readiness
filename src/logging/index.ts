@@ -7,8 +7,9 @@ const current: Level = (process.env.LOG_LEVEL as Level) || 'info';
 function log(level: Level, msg: string, extra?: Record<string, unknown>): void {
   if (ORDER[level] < ORDER[current]) return;
   const line = JSON.stringify({ ts: new Date().toISOString(), level, msg, ...(extra ?? {}) });
-  if (level === 'error' || level === 'warn') process.stderr.write(line + '\n');
-  else process.stdout.write(line + '\n');
+  // Structured logs always go to stderr so stdout stays reserved for the
+  // CLI's machine-readable payloads (--json report markdown/JSON).
+  process.stderr.write(line + '\n');
 }
 
 export const logger = {

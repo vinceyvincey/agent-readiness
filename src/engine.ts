@@ -9,6 +9,7 @@ import { appendHistory, readHistory } from './history.ts';
 import { renderHtml } from './html-report.ts';
 import { getRuntimeVerifications, runRuntimeVerifications, applyRuntimeResults } from './runtime-checks.ts';
 import { getCriterionByPiId } from './criteria-registry.ts';
+import { logger } from './logging/index.ts';
 
 export const RUBRIC_VERSION = '0.9.0';
 
@@ -305,7 +306,9 @@ export function runReadiness(
     droidScoring?: boolean;
   } = {},
 ): ReadinessReport {
+  const discoverMs = Date.now();
   const apps = discoverApps(root);
+  logger.debug('app discovery finished', { root, apps: apps.length, ms: Date.now() - discoverMs });
   const pillars: Record<string, PillarScore> = {};
   const findings: CheckResult[] = [];
 
@@ -323,7 +326,8 @@ export function runReadiness(
             const c = fn(repo);
             c.app = app.path;
             return c;
-          } catch {
+          } catch (e) {
+            logger.error('check crashed', { check: p.id + '.x', app: app.path, error: String(e) });
             return {
               id: p.id + '.x',
               pillar: p.id,
@@ -344,7 +348,8 @@ export function runReadiness(
       const repoChecks = p.checks.map((fn) => {
         try {
           return fn(repo);
-        } catch {
+        } catch (e) {
+          logger.error('check crashed', { check: p.id + '.x', error: String(e) });
           return {
             id: p.id + '.x',
             pillar: p.id,
@@ -484,14 +489,14 @@ export function writeReport(
     // compares against the previous run. Best-effort — never breaks other artifacts.
     try {
       fs.writeFileSync(path.join(dir, 'report.html'), renderHtml(report, { history: readHistory(root, dir) }));
-    } catch {
-      /* html is best-effort */
+    } catch (e) {
+      logger.warn('html report skipped', { dir, error: String(e) });
     }
   }
   try {
     appendHistory(report, root, dir);
-  } catch {
-    /* history is best-effort */
+  } catch (e) {
+    logger.warn('history not appended', { dir, error: String(e) });
   }
   return dir;
 }
