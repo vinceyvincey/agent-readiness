@@ -53,7 +53,7 @@
     "prettier": "^3.0.0",
     "semantic-release": "^25.0.9",
     "typedoc": "^0.28.20",
-    "typescript": "^5.4.0"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "@growthbook/growthbook": "^1.7.0"
