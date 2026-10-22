@@ -44,7 +44,7 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.68.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.2",
     "@typescript-eslint/parser": "^8.68.0",
     "depcheck": "^1.4.7",
     "eslint": "^9.0.0",
